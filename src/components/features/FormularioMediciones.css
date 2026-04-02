@@ -1,0 +1,105 @@
+/* FormularioMediciones.css */
+
+.form-mediciones-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.form-mediciones-subtitle {
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.empty-state-box {
+  text-align: center;
+  padding: 3rem;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.empty-state-icon {
+  margin-bottom: 1rem;
+}
+
+.empty-state-text {
+  color: var(--text-secondary);
+}
+
+.mediciones-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.medicion-card {
+  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  position: relative;
+}
+
+.medicion-del-btn-container {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+}
+
+.medicion-del-btn {
+  color: var(--error);
+  background: transparent;
+  transition: transform 0.2s;
+}
+
+.medicion-del-btn:hover {
+  transform: scale(1.1);
+}
+
+.medicion-card-title {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-right: 2rem; /* evita pisar el boton de borrar */
+}
+
+.medicion-index-badge {
+  background: var(--win-orange);
+  color: white;
+  min-width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.8rem;
+}
+
+.medicion-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.medicion-rssi-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.medicion-rssi-title {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.medicion-rssi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+}

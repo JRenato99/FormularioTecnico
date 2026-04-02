@@ -1,0 +1,30 @@
+/* DashboardInstalacion.css */
+
+.dashboard-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  gap: 1rem;
+}
+
+.dashboard-title {
+  font-size: 1.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.dashboard-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.dashboard-finish-btn {
+  flex-grow: 1;
+  max-width: 200px;
+}
+
+.dashboard-content-grid {
+  display: grid;
+  gap: 2rem;
+}
