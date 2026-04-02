@@ -1,0 +1,95 @@
+/* Reusable UI Components Styles */
+.ui-btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.ui-btn-primary {
+  background-color: var(--win-orange);
+  color: white;
+  box-shadow: 0 4px 14px rgba(255, 107, 0, 0.4);
+}
+
+.ui-btn-primary:hover {
+  background-color: var(--win-orange-light);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 107, 0, 0.6);
+}
+
+.ui-btn-secondary {
+  background-color: var(--win-bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.ui-btn-secondary:hover {
+  background-color: #2A2A2A;
+  border-color: #444;
+}
+
+.ui-btn:active {
+  transform: translateY(1px);
+}
+
+.ui-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.ui-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.ui-input, .ui-select {
+  background-color: var(--input-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.ui-input:focus, .ui-select:focus {
+  border-color: var(--win-orange);
+  box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.2);
+}
+
+.ui-error-text {
+  color: var(--error);
+  font-size: 0.8rem;
+  margin-top: -0.25rem;
+}
+
+.ui-card {
+  padding: 2rem;
+  border-radius: var(--radius-lg);
+}
+
+/* RESPONSIVE UI */
+@media screen and (max-width: 768px) {
+  .ui-card {
+    padding: 1.25rem;
+  }
+  
+  .ui-btn {
+    width: 100%;
+    padding: 0.85rem 1rem;
+    font-size: 1rem;
+  }
+  
+  .ui-input, .ui-select {
+    padding: 0.85rem 1rem;
+  }
+}
