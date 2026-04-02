@@ -2,50 +2,48 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Input, Button } from '../components/ui';
 import { Wifi, ArrowRight } from 'lucide-react';
+import './Login.css';
 
+/**
+ * Componente Login
+ * Representa la pantalla de acceso principal para los técnicos.
+ */
 const Login = () => {
   const navigate = useNavigate();
+  
+  // Estados locales para capturar los datos del formulario
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  /**
+   * Manejador temporal para simular el inicio de sesión.
+   * En un proyecto real, aquí se llamaría a una API (ej. validación JWT).
+   * Al pasar la validación, redirige al técnico a la pantalla de búsqueda.
+   */
   const handleLogin = (e) => {
-    e.preventDefault();
+    e.preventDefault(); // Evita que la página recargue tras el submit
     if (email && password) {
-      // Mock login success
+      // Mock login exitoso
       navigate('/buscar');
     }
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'radial-gradient(circle at top right, var(--win-orange-dark), var(--win-bg-dark) 40%)',
-      padding: '2rem'
-    }}>
-      <div className="animate-fade-in" style={{ width: '100%', maxWidth: '400px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{
-            background: 'var(--win-orange)',
-            width: '64px',
-            height: '64px',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 1rem',
-            boxShadow: '0 0 20px rgba(255, 107, 0, 0.4)'
-          }}>
+    <div className="login-page-container">
+      <div className="login-form-wrapper animate-fade-in">
+        
+        {/* Encabezado con Icono y Texto */}
+        <div className="login-header">
+          <div className="login-logo-container">
              <Wifi size={32} color="white" />
           </div>
-          <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Portal WIN</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Acceso para Técnicos</p>
+          <h1 className="login-title">Portal WIN</h1>
+          <p className="login-subtitle">Acceso para Técnicos</p>
         </div>
 
+        {/* Tarjeta con los campos del formulario */}
         <Card>
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <form className="login-form" onSubmit={handleLogin}>
             <Input 
               label="Usuario o Correo" 
               type="text" 
@@ -63,11 +61,12 @@ const Login = () => {
               required
             />
             
-            <Button type="submit" style={{ marginTop: '1rem' }}>
+            <Button type="submit" className="login-submit-btn">
               Ingresar <ArrowRight size={18} />
             </Button>
           </form>
         </Card>
+        
       </div>
     </div>
   );

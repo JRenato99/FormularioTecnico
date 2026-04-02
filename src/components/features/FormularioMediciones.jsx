@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
 import { Plus, Trash2, Home, Activity } from 'lucide-react';
+import './FormularioMediciones.css';
 
 const UBICACIONES = [
   'Sala', 'Comedor', 'Cocina', 'Baño Principal', 'Baño Visitas', 
@@ -8,9 +9,15 @@ const UBICACIONES = [
   'Estudio', 'Pasadizo', 'Terraza', 'Otro'
 ];
 
+/**
+ * Componente FormularioMediciones
+ * Aquí el técnico irá registrando cada cuarto/ambiente de la casa.
+ * Además, asocia el ambiente al equipo emisor e indica cómo llega la señal.
+ */
 const FormularioMediciones = ({ equipos }) => {
   const [mediciones, setMediciones] = useState([]);
 
+  // Crear una nueva medición vacía en la lista
   const addMedicion = () => {
     setMediciones([...mediciones, {
       id: Date.now(),
@@ -23,6 +30,7 @@ const FormularioMediciones = ({ equipos }) => {
     }]);
   };
 
+  // Actualizar un campo específico de una medición por su ID
   const updateMedicion = (id, field, value) => {
     setMediciones(mediciones.map(m => m.id === id ? { ...m, [field]: value } : m));
   };
@@ -33,43 +41,47 @@ const FormularioMediciones = ({ equipos }) => {
 
   return (
     <Card>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+      
+      {/* Cabecera del formulario con botón de acción global */}
+      <div className="form-mediciones-header">
         <div>
           <h2>Mediciones por Ambiente</h2>
-          <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Registra los niveles de señal en cada zona de la casa.</p>
+          <p className="form-mediciones-subtitle">Registra los niveles de señal en cada zona de la casa.</p>
         </div>
         <Button onClick={addMedicion}>
           <Plus size={18} /> Agregar Ambiente
         </Button>
       </div>
 
+      {/* Pantalla vacía cuando no hay mediciones aún */}
       {mediciones.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)' }}>
-          <Home size={48} color="var(--text-muted)" style={{ marginBottom: '1rem' }} />
-          <p style={{ color: 'var(--text-secondary)' }}>Aún no has registrado ninguna medición.</p>
+        <div className="empty-state-box">
+          <Home size={48} color="var(--text-muted)" className="empty-state-icon" />
+          <p className="empty-state-text">Aún no has registrado ninguna medición.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        
+        /* Contenedor principal de la lista iterativa */
+        <div className="mediciones-list">
           {mediciones.map((med, index) => (
-            <div key={med.id} className="glass-panel animate-fade-in" style={{ padding: '1.5rem', borderRadius: 'var(--radius-md)', position: 'relative' }}>
+            
+            /* Tarjeta individual de medición con glassmorphism generalizado */
+            <div key={med.id} className="glass-panel animate-fade-in medicion-card">
               
-              <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem' }}>
-                <button onClick={() => removeMedicion(med.id)} style={{ color: 'var(--error)', background: 'transparent' }}>
+              <div className="medicion-del-btn-container">
+                <button onClick={() => removeMedicion(med.id)} className="medicion-del-btn">
                   <Trash2 size={20} />
                 </button>
               </div>
 
-              <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ 
-                  background: 'var(--win-orange)', color: 'white', width: '24px', height: '24px', 
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.8rem'
-                }}>
+              <h4 className="medicion-card-title">
+                <span className="medicion-index-badge">
                   {index + 1}
                 </span>
                 Detalle del Ambiente
               </h4>
               
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+              <div className="medicion-fields-grid">
                 <Select 
                   label="Ubicación" 
                   value={med.ubicacion}
@@ -102,22 +114,23 @@ const FormularioMediciones = ({ equipos }) => {
                 />
               </div>
 
-              <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Activity size={16} /> Mediciones RSSI (dBm)
+              {/* Sub-sección específica para RSSI de este ambiente */}
+              <div className="medicion-rssi-section">
+                <p className="medicion-rssi-title">
+                  <Activity size={16} /> Mediciones Sensoriales RSSI (dBm)
                 </p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
+                <div className="medicion-rssi-grid">
                    <Input 
                     label="Señal 2.4 GHz" 
                     type="number"
-                    placeholder="-45"
+                    placeholder="Ej. -45"
                     value={med.rssi24g}
                     onChange={e => updateMedicion(med.id, 'rssi24g', e.target.value)}
                   />
                    <Input 
                     label="Señal 5 GHz" 
                     type="number"
-                    placeholder="-50"
+                    placeholder="Ej. -50"
                     value={med.rssi5g}
                     onChange={e => updateMedicion(med.id, 'rssi5g', e.target.value)}
                   />

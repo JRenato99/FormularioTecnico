@@ -3,19 +3,31 @@ import { useNavigate } from 'react-router-dom';
 import { Header } from '../components/layout/Header';
 import { Card, Input, Button } from '../components/ui';
 import { Search, User, MapPin } from 'lucide-react';
+import './BuscadorCliente.css'; // Importación de clases encapsuladas
 
+/**
+ * Componente BuscadorCliente
+ * Pantalla de validación en la cual el usuario ingresa el código del cliente para abrir el flujo de trabajo.
+ */
 const BuscadorCliente = () => {
   const navigate = useNavigate();
+  
+  // Estado para capturar la escritura del técnico y el cliente encontrado
   const [codigo, setCodigo] = useState('');
   const [cliente, setCliente] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  /**
+   * Obtiene la orden del backend utilizando el código.
+   * Se simula mediante setTimeout un loading (carga de red).
+   */
   const handleBuscar = (e) => {
     e.preventDefault();
     if (!codigo) return;
     
     setLoading(true);
-    // Mock API call
+    
+    // Mock de llamada asíncrona a API del cliente
     setTimeout(() => {
       setCliente({
         nombre: 'Carlos Augusto Rivera',
@@ -27,6 +39,9 @@ const BuscadorCliente = () => {
     }, 800);
   };
 
+  /**
+   * Redirige al técnico hacia la topología tras verificar el cliente.
+   */
   const handleContinuar = () => {
     navigate('/dashboard');
   };
@@ -35,15 +50,15 @@ const BuscadorCliente = () => {
     <div>
       <Header />
       <div className="layout-container animate-fade-in">
-        <div style={{ maxWidth: '600px', margin: '3rem auto 0' }}>
-          <h1 style={{ marginBottom: '0.5rem', textAlign: 'center' }}>Buscar Orden de Trabajo</h1>
-          <p style={{ color: 'var(--text-secondary)', textAlign: 'center', marginBottom: '2rem' }}>
+        <div className="buscador-wrapper">
+          <h1 className="buscador-title">Buscar Orden de Trabajo</h1>
+          <p className="buscador-subtitle">
             Ingresa el código de pedido o cliente para iniciar el registro.
           </p>
 
-          <Card style={{ marginBottom: '2rem' }}>
-            <form onSubmit={handleBuscar} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
-              <div style={{ flex: 1 }}>
+          <Card className="buscador-card">
+            <form onSubmit={handleBuscar} className="buscador-form">
+              <div className="buscador-input-container">
                 <Input 
                   label="Código de Pedido / Cliente" 
                   placeholder="Ej: WIN-849201" 
@@ -51,39 +66,35 @@ const BuscadorCliente = () => {
                   onChange={(e) => setCodigo(e.target.value)}
                 />
               </div>
-              <Button type="submit" disabled={loading} style={{ height: '48px' }}>
+              <Button type="submit" disabled={loading} className="buscador-btn">
                 {loading ? 'Buscando...' : <><Search size={18} /> Buscar</>}
               </Button>
             </form>
           </Card>
 
+          {/* Renderizado Condicional: Solo muestra la UI del cliente si se encontró */}
           {cliente && (
             <div className="animate-fade-in">
-              <Card style={{ border: '1px solid var(--win-orange)' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', marginBottom: '1.5rem' }}>
-                  <div style={{
-                    background: 'rgba(255, 107, 0, 0.1)',
-                    padding: '1rem',
-                    borderRadius: '50%',
-                    color: 'var(--win-orange)'
-                  }}>
+              <Card className="cliente-card">
+                <div className="cliente-header">
+                  <div className="cliente-icon-bg">
                     <User size={24} />
                   </div>
                   <div>
-                    <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{cliente.nombre}</h3>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.25rem' }}>{cliente.plan}</p>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <h3 className="cliente-nombre">{cliente.nombre}</h3>
+                    <p className="cliente-plan">{cliente.plan}</p>
+                    <p className="cliente-direccion">
                       <MapPin size={14} /> {cliente.direccion}
                     </p>
                   </div>
                 </div>
                 
-                <div style={{ background: '#2A2A2A', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Tipo de Servicio:</span>
-                  <span style={{ fontWeight: 600 }}>{cliente.tipo}</span>
+                <div className="cliente-info-box">
+                  <span className="cliente-info-label">Tipo de Servicio:</span>
+                  <span className="cliente-info-value">{cliente.tipo}</span>
                 </div>
 
-                <Button style={{ width: '100%' }} onClick={handleContinuar}>
+                <Button className="continuar-btn" onClick={handleContinuar}>
                   Iniciar Mediciones
                 </Button>
               </Card>
