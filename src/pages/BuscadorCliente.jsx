@@ -30,7 +30,7 @@ const BuscadorCliente = () => {
     // Mock de llamada asíncrona a API del cliente
     setTimeout(() => {
       setCliente({
-        nombre: 'Carlos Augusto Rivera',
+        codigo: codigo,
         plan: '1000 Mbps - Fibra',
         direccion: 'Av. Javier Prado Este 1234, San Borja, Lima',
         tipo: 'Instalación Nueva'
@@ -81,7 +81,7 @@ const BuscadorCliente = () => {
                     <User size={24} />
                   </div>
                   <div>
-                    <h3 className="cliente-nombre">{cliente.nombre}</h3>
+                    <h3 className="cliente-nombre">Orden / Cliente: {cliente.codigo}</h3>
                     <p className="cliente-plan">{cliente.plan}</p>
                     <p className="cliente-direccion">
                       <MapPin size={14} /> {cliente.direccion}

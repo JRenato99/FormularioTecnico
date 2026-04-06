@@ -1,21 +1,10 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
 import { Plus, Trash2, Home, Activity } from 'lucide-react';
+import { UBICACIONES, getRssiStyle } from '../../utils/constants';
 import './FormularioMediciones.css';
 
-const UBICACIONES = [
-  'Sala', 'Comedor', 'Cocina', 'Baño Principal', 'Baño Visitas', 
-  'Habitación Principal', 'Habitación 2', 'Habitación 3', 
-  'Estudio', 'Pasadizo', 'Terraza', 'Otro'
-];
-
-/**
- * Componente FormularioMediciones
- * Aquí el técnico irá registrando cada cuarto/ambiente de la casa.
- * Además, asocia el ambiente al equipo emisor e indica cómo llega la señal.
- */
-const FormularioMediciones = ({ equipos }) => {
-  const [mediciones, setMediciones] = useState([]);
+const FormularioMediciones = ({ equipos, mediciones, setMediciones }) => {
 
   // Crear una nueva medición vacía en la lista
   const addMedicion = () => {
@@ -24,13 +13,15 @@ const FormularioMediciones = ({ equipos }) => {
       ubicacion: 'Sala',
       ubicacionPersonalizada: '',
       piso: '1',
-      equipoId: 'ONT',
+      equipoId: equipos.length > 0 ? equipos[0].id : '',
+      lineaVista: 'Si',
+      velocidad24g: '',
+      velocidad5g: '',
       rssi24g: '',
       rssi5g: ''
     }]);
   };
 
-  // Actualizar un campo específico de una medición por su ID
   const updateMedicion = (id, field, value) => {
     setMediciones(mediciones.map(m => m.id === id ? { ...m, [field]: value } : m));
   };
@@ -39,37 +30,44 @@ const FormularioMediciones = ({ equipos }) => {
     setMediciones(mediciones.filter(m => m.id !== id));
   };
 
+  // Componente interno para mostrar la placa de RSSI
+  const RssiBadge = ({ rssiValue }) => {
+    const styleInfo = getRssiStyle(rssiValue);
+    if (!styleInfo) return null;
+    return (
+      <div 
+        className="rssi-evaluation-badge" 
+        style={{ borderColor: styleInfo.color, background: styleInfo.bg, color: styleInfo.color }}
+      >
+        {styleInfo.lbl}
+      </div>
+    );
+  };
+
   return (
     <Card>
-      
-      {/* Cabecera del formulario con botón de acción global */}
       <div className="form-mediciones-header">
         <div>
           <h2>Mediciones por Ambiente</h2>
-          <p className="form-mediciones-subtitle">Registra los niveles de señal en cada zona de la casa.</p>
+          <p className="form-mediciones-subtitle">Registra los niveles de señal y velocidad en cada zona de la casa.</p>
         </div>
         <Button onClick={addMedicion}>
           <Plus size={18} /> Agregar Ambiente
         </Button>
       </div>
 
-      {/* Pantalla vacía cuando no hay mediciones aún */}
       {mediciones.length === 0 ? (
         <div className="empty-state-box">
           <Home size={48} color="var(--text-muted)" className="empty-state-icon" />
-          <p className="empty-state-text">Aún no has registrado ninguna medición.</p>
+          <p className="empty-state-text">Aún no has registrado ninguna medición en el domicilio.</p>
         </div>
       ) : (
-        
-        /* Contenedor principal de la lista iterativa */
         <div className="mediciones-list">
           {mediciones.map((med, index) => (
-            
-            /* Tarjeta individual de medición con glassmorphism generalizado */
             <div key={med.id} className="glass-panel animate-fade-in medicion-card">
               
               <div className="medicion-del-btn-container">
-                <button onClick={() => removeMedicion(med.id)} className="medicion-del-btn">
+                <button onClick={() => removeMedicion(med.id)} className="medicion-del-btn" title="Eliminar medición">
                   <Trash2 size={20} />
                 </button>
               </div>
@@ -107,33 +105,77 @@ const FormularioMediciones = ({ equipos }) => {
                 />
 
                 <Select 
-                  label="Equipo que da servicio aquí" 
+                  label="Equipo Emisor (AP/ONT)" 
                   value={med.equipoId}
                   onChange={e => updateMedicion(med.id, 'equipoId', e.target.value)}
                   options={equipos.map(e => ({ label: e.nombre, value: e.id }))}
                 />
+                
+                <Select 
+                  label="Línea de Vista (LOS)" 
+                  value={med.lineaVista}
+                  onChange={e => updateMedicion(med.id, 'lineaVista', e.target.value)}
+                  options={[
+                    { label: 'Sí (Directa)', value: 'Si' },
+                    { label: 'No (Con Obstáculos)', value: 'No' },
+                  ]}
+                />
               </div>
 
-              {/* Sub-sección específica para RSSI de este ambiente */}
-              <div className="medicion-rssi-section">
-                <p className="medicion-rssi-title">
-                  <Activity size={16} /> Mediciones Sensoriales RSSI (dBm)
-                </p>
-                <div className="medicion-rssi-grid">
-                   <Input 
-                    label="Señal 2.4 GHz" 
-                    type="number"
-                    placeholder="Ej. -45"
-                    value={med.rssi24g}
-                    onChange={e => updateMedicion(med.id, 'rssi24g', e.target.value)}
-                  />
-                   <Input 
-                    label="Señal 5 GHz" 
-                    type="number"
-                    placeholder="Ej. -50"
-                    value={med.rssi5g}
-                    onChange={e => updateMedicion(med.id, 'rssi5g', e.target.value)}
-                  />
+              {/* Sub-secciones de datos numéricos */}
+              <div className="medicion-bottom-sections">
+                
+                {/* Sección de Velocidades */}
+                <div className="medicion-bottom-col border-right">
+                  <p className="medicion-section-title">
+                    <Activity size={16} /> Pruebas de Velocidad (Mbps)
+                  </p>
+                  <div className="medicion-data-grid">
+                    <Input 
+                      label="Velocidad 2.4 GHz" 
+                      type="number"
+                      placeholder="Ej. 60"
+                      value={med.velocidad24g}
+                      onChange={e => updateMedicion(med.id, 'velocidad24g', e.target.value)}
+                    />
+                    <Input 
+                      label="Velocidad 5 GHz" 
+                      type="number"
+                      placeholder="Ej. 300"
+                      value={med.velocidad5g}
+                      onChange={e => updateMedicion(med.id, 'velocidad5g', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Sección de Señales con evaluación */}
+                <div className="medicion-bottom-col">
+                  <p className="medicion-section-title">
+                    <Activity size={16} /> Mediciones Sensoriales RSSI (dBm)
+                  </p>
+                  <div className="medicion-data-grid">
+                    <div className="rssi-input-group">
+                      <Input 
+                        label="Señal 2.4 GHz" 
+                        type="number"
+                        placeholder="Ej. -45"
+                        value={med.rssi24g}
+                        onChange={e => updateMedicion(med.id, 'rssi24g', e.target.value)}
+                      />
+                      <RssiBadge rssiValue={med.rssi24g} />
+                    </div>
+                    
+                    <div className="rssi-input-group">
+                      <Input 
+                        label="Señal 5 GHz" 
+                        type="number"
+                        placeholder="Ej. -50"
+                        value={med.rssi5g}
+                        onChange={e => updateMedicion(med.id, 'rssi5g', e.target.value)}
+                      />
+                      <RssiBadge rssiValue={med.rssi5g} />
+                    </div>
+                  </div>
                 </div>
               </div>
 

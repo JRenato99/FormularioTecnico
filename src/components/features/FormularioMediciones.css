@@ -45,12 +45,14 @@
   position: absolute;
   top: 1.5rem;
   right: 1.5rem;
+  z-index: 10;
 }
 
 .medicion-del-btn {
   color: var(--error);
   background: transparent;
   transition: transform 0.2s;
+  padding: 4px;
 }
 
 .medicion-del-btn:hover {
@@ -62,7 +64,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding-right: 2rem; /* evita pisar el boton de borrar */
+  padding-right: 2rem;
 }
 
 .medicion-index-badge {
@@ -83,13 +85,27 @@
   gap: 1rem;
 }
 
-.medicion-rssi-section {
+/* Subdivisiones inferiores */
+.medicion-bottom-sections {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
 }
 
-.medicion-rssi-title {
+.medicion-bottom-col {
+  flex: 1;
+  min-width: 280px;
+}
+
+.medicion-bottom-col.border-right {
+  border-right: 1px dashed var(--border-color);
+  padding-right: 2rem;
+}
+
+.medicion-section-title {
   font-size: 0.9rem;
   color: var(--text-secondary);
   margin-bottom: 1rem;
@@ -98,8 +114,38 @@
   gap: 0.5rem;
 }
 
-.medicion-rssi-grid {
+.medicion-data-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 1rem;
+}
+
+.rssi-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rssi-evaluation-badge {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  border: 1px solid;
+  animation: popIn 0.3s ease-out;
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@media screen and (max-width: 768px) {
+  .medicion-bottom-col.border-right {
+    border-right: none;
+    padding-right: 0;
+    border-bottom: 1px dashed var(--border-color);
+    padding-bottom: 1.5rem;
+  }
 }
