@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
 import { Plus, Trash2, Router, Wifi } from 'lucide-react';
-import { UBICACIONES, LEYENDA, getRssiStyle } from '../../utils/constants';
+import { LEYENDA, getRssiStyle } from '../../utils/constants';
 import './Topologia.css';
 
-const TopologiaRed = ({ equipos, setEquipos, isExporting }) => {
+const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAgregarUbicacion }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddOnt, setShowAddOnt] = useState(false);
 
@@ -27,17 +27,43 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting }) => {
   const ontNode = equipos.find(e => e.tipo === 'ONT');
   const apCount = equipos.filter(e => e.tipo === 'AP').length;
 
+  const handlePisoChange = (val, isOnt) => {
+    let pStr = val.replace(/\D/g, ''); // Remover negativos y no dígitos
+    if (!pStr) {
+      if (isOnt) setNewOnt({...newOnt, piso: ''});
+      else setNewAp({...newAp, piso: ''});
+      return;
+    }
+    let p = parseInt(pStr, 10);
+    if (p < 1) p = 1;
+    if (p > 5) p = 5;
+    
+    if (isOnt) setNewOnt({...newOnt, piso: p.toString()});
+    else setNewAp({...newAp, piso: p.toString()});
+  };
+
+  const handleRssiChange = (val) => {
+    let vStr = val.replace(/-/g, ''); // Remover cualquier guion previo preventivamente
+    if (!vStr) return setNewAp({...newAp, rssiBackhaul: ''});
+    let v = parseInt(vStr, 10);
+    if (isNaN(v)) return;
+    setNewAp({...newAp, rssiBackhaul: `-${Math.abs(v)}`});
+  };
+
   const handleAddOnt = () => {
     // Validar que no existan campos vacíos críticos
     if (!newOnt.piso) return alert('Por favor ingresa el Piso de la ONT.');
     if (newOnt.ambiente === 'Otro' && !newOnt.ambientePersonalizado) return alert('Por favor ingresa el nombre manual del ambiente.');
+
+    const ambienteF = newOnt.ambiente === 'Otro' ? newOnt.ambientePersonalizado : newOnt.ambiente;
+    if (newOnt.ambiente === 'Otro') onAgregarUbicacion(newOnt.ambientePersonalizado);
 
     setEquipos([{
       id: 'ONT',
       nombre: 'ONT',
       tipo: 'ONT',
       piso: newOnt.piso,
-      ambienteFinal: newOnt.ambiente === 'Otro' ? newOnt.ambientePersonalizado : newOnt.ambiente
+      ambienteFinal: ambienteF
     }]);
     setShowAddOnt(false);
   };
@@ -45,11 +71,13 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting }) => {
   const handleAddAp = () => {
     if (apCount >= 8) return;
     
-    // Validar espacios en blanco
     if (!newAp.piso) return alert("Debes rellenar el Piso del Access Point.");
     if (newAp.ambiente === 'Otro' && !newAp.ambientePersonalizado) return alert("Por favor escribe el nombre del ambiente.");
     const isWireless = newAp.conexion === 'Inalámbrico';
     if (isWireless && !newAp.rssiBackhaul) return alert("Si configuras enlace Inalámbrico MESH, requieres escribir la señal RSSI del Backhaul.");
+
+    const ambienteF = newAp.ambiente === 'Otro' ? newAp.ambientePersonalizado : newAp.ambiente;
+    if (newAp.ambiente === 'Otro') onAgregarUbicacion(newAp.ambientePersonalizado);
 
     const newId = `AP${apCount + 1}`;
     setEquipos([...equipos, {
@@ -57,7 +85,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting }) => {
       nombre: `Access Point ${apCount + 1}`,
       tipo: 'AP',
       ...newAp, 
-      ambienteFinal: newAp.ambiente === 'Otro' ? newAp.ambientePersonalizado : newAp.ambiente,
+      ambienteFinal: ambienteF,
       banda: isWireless ? newAp.banda : null,
       rssiBackhaul: isWireless ? newAp.rssiBackhaul : null
     }]);
@@ -142,7 +170,6 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting }) => {
           <p className="subtitle">Configura y visualiza la distribución de equipos y enlaces (Backhaul)</p>
         </div>
         
-        {/* Desactivar botón o esconderlo según flag PDF */}
         <Button 
           onClick={() => setShowAddModal(!showAddModal)} 
           disabled={!ontNode || apCount >= 8}
@@ -159,15 +186,15 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting }) => {
              <Input 
               label="Piso" 
               type="number"
-              placeholder="Ej. 1" 
+              placeholder="1 a 5" 
               value={newOnt.piso}
-              onChange={e => setNewOnt({...newOnt, piso: e.target.value})}
+              onChange={e => handlePisoChange(e.target.value, true)}
             />
             <Select 
               label="Ambiente" 
               value={newOnt.ambiente}
               onChange={e => setNewOnt({...newOnt, ambiente: e.target.value})}
-              options={UBICACIONES.map(u => ({ label: u, value: u }))}
+              options={listaUbicaciones.map(u => ({ label: u, value: u }))}
             />
             {newOnt.ambiente === 'Otro' && (
               <Input 
@@ -191,15 +218,15 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting }) => {
              <Input 
               label="Piso" 
               type="number"
-              placeholder="Ej. 2" 
+              placeholder="1 a 5" 
               value={newAp.piso}
-              onChange={e => setNewAp({...newAp, piso: e.target.value})}
+              onChange={e => handlePisoChange(e.target.value, false)}
             />
             <Select 
               label="Ambiente" 
               value={newAp.ambiente}
               onChange={e => setNewAp({...newAp, ambiente: e.target.value})}
-              options={UBICACIONES.map(u => ({ label: u, value: u }))}
+              options={listaUbicaciones.map(u => ({ label: u, value: u }))}
             />
             {newAp.ambiente === 'Otro' && (
               <Input 
@@ -240,9 +267,9 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting }) => {
                 <Input 
                   label="RSSI (dBm)" 
                   type="number"
-                  placeholder="Ej: -55" 
+                  placeholder="Ej: 55 se vuelve -55" 
                   value={newAp.rssiBackhaul}
-                  onChange={e => setNewAp({...newAp, rssiBackhaul: e.target.value})}
+                  onChange={e => handleRssiChange(e.target.value)}
                 />
                </>
             )}

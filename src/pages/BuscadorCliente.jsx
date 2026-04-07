@@ -16,6 +16,7 @@ const BuscadorCliente = () => {
   const [codigo, setCodigo] = useState('');
   const [cliente, setCliente] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [tipoVivienda, setTipoVivienda] = useState(''); // Estado para Casa/Departamento
 
   /**
    * Obtiene la orden del backend utilizando el código.
@@ -40,10 +41,16 @@ const BuscadorCliente = () => {
   };
 
   /**
-   * Redirige al técnico hacia la topología tras verificar el cliente.
+   * Redirige al técnico hacia la topología tras verificar el cliente y la vivienda.
    */
   const handleContinuar = () => {
-    navigate('/dashboard');
+    if (!tipoVivienda) {
+      alert("Por favor, selecciona si es Casa o Departamento antes de continuar.");
+      return;
+    }
+    
+    // Pasamos el código de cliente dinámicamente mediante el router state
+    navigate('/dashboard', { state: { codigo: cliente.codigo, tipoVivienda } });
   };
 
   return (
@@ -94,7 +101,36 @@ const BuscadorCliente = () => {
                   <span className="cliente-info-value">{cliente.tipo}</span>
                 </div>
 
-                <Button className="continuar-btn" onClick={handleContinuar}>
+                {/* Sector Selección de Vivienda Requirido */}
+                <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem', background: 'rgba(255, 107, 0, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255, 107, 0, 0.2)' }}>
+                  <h4 style={{ marginBottom: '0.8rem', color: 'var(--text-primary)', fontSize: '0.95rem' }}>Tipo de Domicilio (*)</h4>
+                  <div style={{ display: 'flex', gap: '2rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                      <input 
+                        type="radio" 
+                        name="vivienda" 
+                        value="Casa" 
+                        checked={tipoVivienda === 'Casa'} 
+                        onChange={(e) => setTipoVivienda(e.target.value)} 
+                        style={{ accentColor: 'var(--win-orange)', width: '16px', height: '16px' }}
+                      />
+                      <span>Casa</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                      <input 
+                        type="radio" 
+                        name="vivienda" 
+                        value="Departamento" 
+                        checked={tipoVivienda === 'Departamento'} 
+                        onChange={(e) => setTipoVivienda(e.target.value)} 
+                        style={{ accentColor: 'var(--win-orange)', width: '16px', height: '16px' }}
+                      />
+                      <span>Departamento</span>
+                    </label>
+                  </div>
+                </div>
+
+                <Button className="continuar-btn" onClick={handleContinuar} disabled={!tipoVivienda}>
                   Iniciar Mediciones
                 </Button>
               </Card>

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Header } from '../components/layout/Header';
 import { Button } from '../components/ui';
 import TopologiaRed from '../components/features/TopologiaRed';
@@ -6,14 +7,27 @@ import FormularioMediciones from '../components/features/FormularioMediciones';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { Download, CheckCircle, FileSpreadsheet } from 'lucide-react';
-import { getRssiStyle } from '../utils/constants';
+import { getRssiStyle, UBICACIONES } from '../utils/constants';
 import './DashboardInstalacion.css';
 
 const DashboardInstalacion = () => {
+  // Rutas: Obtenemos el codigo del paso 1 (Buscador)
+  const location = useLocation();
+  const codigoCliente = location.state?.codigo || 'GENERIC-001';
+
   const [equipos, setEquipos] = useState([]);
   const [mediciones, setMediciones] = useState([]);
   const [isExporting, setIsExporting] = useState(false);
   const topologiaRef = useRef(null);
+  
+  // Estado Dinámico de Ubicaciones: Permite que AP y Mediciones agreguen "Otros" permanentemente 
+  const [listaUbicaciones, setListaUbicaciones] = useState(UBICACIONES);
+
+  const handleAgregarUbicacionCustom = (nueva) => {
+    if (nueva && nueva.trim() !== '' && !listaUbicaciones.includes(nueva)) {
+      setListaUbicaciones(prev => [...prev.filter(u => u !== 'Otro'), nueva, 'Otro']);
+    }
+  };
 
   const handleExportPDF = async () => {
     if (!topologiaRef.current) return;
@@ -37,7 +51,7 @@ const DashboardInstalacion = () => {
         });
         
         pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
-        pdf.save(`Topologia_WIN.pdf`);
+        pdf.save(`Topologia_WIN_${codigoCliente}.pdf`);
         
       } catch (error) {
         console.error("Error generando PDF", error);
@@ -55,12 +69,15 @@ const DashboardInstalacion = () => {
       if (!m.piso || (m.ubicacion === 'Otro' && !m.ubicacionPersonalizada)) {
         return alert(`La medición #${i + 1} tiene campos de ubicación o piso en blanco.`);
       }
-      if (!m.velocidad24g || !m.rssi24g || !m.velocidad5g || !m.rssi5g) {
-        return alert(`La medición #${i + 1} requiere los 4 campos obligatorios de métricas Llenos (Velocidad y RSSI para 2.4G y 5G). Ingresa 0 si no aplica.`);
+      if (!m.isSaved) {
+        return alert(`La medición #${i + 1} no está guardada. Por favor presiona Guardar en el bloque antes de exportar.`);
+      }
+      // Los mbps y rssi están validados individualmente, pero prevemos vacíos letales.
+      if (m.velocidad24g === '' || m.rssi24g === '' || m.velocidad5g === '' || m.rssi5g === '') {
+        return alert(`La medición #${i + 1} requiere los campos de métricas. Llénalos con 0 u otro número si no aplica.`);
       }
     }
 
-    // 2. Definir 16 columnas
     const headers = [
       'Ambientes', 
       'Piso', 
@@ -80,7 +97,6 @@ const DashboardInstalacion = () => {
       'Nivel de Señal BH'
     ];
     
-    // 3. Mapear lógica relacional
     const rows = mediciones.map(m => {
       const parent = equipos.find(e => e.id === m.equipoId);
       const grandparent = parent ? equipos.find(e => e.id === parent.parentId) : null;
@@ -123,7 +139,7 @@ const DashboardInstalacion = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "Reporte_Mediciones_WIN.csv");
+    link.setAttribute("download", `Reporte_Mediciones_WIN_${codigoCliente}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -138,7 +154,7 @@ const DashboardInstalacion = () => {
         <div className="dashboard-header" style={{ alignItems: 'flex-start' }}>
           <div>
             <h1 className="dashboard-title">Formulario de Instalación</h1>
-            <p className="dashboard-subtitle">Añade la Topología base para continuar.</p>
+            <p className="dashboard-subtitle">Orden/Cliente: <strong>{codigoCliente}</strong></p>
           </div>
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
             <Button 
@@ -161,11 +177,23 @@ const DashboardInstalacion = () => {
         <div className="dashboard-content-grid">
           
           <div ref={topologiaRef} style={{ background: '#121212', padding: '1rem', borderRadius: '12px' }}>
-            <TopologiaRed equipos={equipos} setEquipos={setEquipos} isExporting={isExporting} />
+            <TopologiaRed 
+               equipos={equipos} 
+               setEquipos={setEquipos} 
+               isExporting={isExporting} 
+               listaUbicaciones={listaUbicaciones}
+               onAgregarUbicacion={handleAgregarUbicacionCustom}
+            />
           </div>
           
           <div>
-            <FormularioMediciones equipos={equipos} mediciones={mediciones} setMediciones={setMediciones} />
+            <FormularioMediciones 
+               equipos={equipos} 
+               mediciones={mediciones} 
+               setMediciones={setMediciones} 
+               listaUbicaciones={listaUbicaciones}
+               onAgregarUbicacion={handleAgregarUbicacionCustom}
+            />
           </div>
 
         </div>
