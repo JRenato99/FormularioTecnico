@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Input, Button } from '../components/ui';
+import { Card, Input, Button, Select } from '../components/ui';
 import { Wifi, ArrowRight } from 'lucide-react';
 import './Login.css';
 
 /**
  * Componente Login
  * Representa la pantalla de acceso principal para los técnicos.
+ * Autentica y guarda en LocalStorage la información vital de la cuadrilla.
  */
 const Login = () => {
   const navigate = useNavigate();
@@ -14,17 +15,43 @@ const Login = () => {
   // Estados locales para capturar los datos del formulario
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [cuadrilla, setCuadrilla] = useState('');
+  const [cuadrillaCustom, setCuadrillaCustom] = useState('');
+
+  const opcionesCuadrilla = [
+    { label: 'Seleccione su cuadrilla...', value: '' },
+    { label: 'LIMA-NTE-01 (Los Olivos/SMP)', value: 'LIMA-NTE-01' },
+    { label: 'LIMA-SUR-05 (Surco/Miraflores)', value: 'LIMA-SUR-05' },
+    { label: 'LIMA-ESTE-03 (SJL/Ate)', value: 'LIMA-ESTE-03' },
+    { label: 'CALLAO-02 (Bellavista/La Perla)', value: 'CALLAO-02' },
+    { label: 'PROV-PIURA-01', value: 'PROV-PIURA-01' },
+    { label: 'Otro (Especificar)', value: 'Otro' }
+  ];
 
   /**
-   * Manejador temporal para simular el inicio de sesión.
-   * En un proyecto real, aquí se llamaría a una API (ej. validación JWT).
-   * Al pasar la validación, redirige al técnico a la pantalla de búsqueda.
+   * Valida los campos y establece la sesión en localStorage para que el Header lo consuma.
    */
   const handleLogin = (e) => {
-    e.preventDefault(); // Evita que la página recargue tras el submit
-    if (email && password) {
+    e.preventDefault(); 
+    if (email && password && cuadrilla) {
+      if (cuadrilla === 'Otro' && !cuadrillaCustom) {
+         alert('Por favor especifica el nombre de tu cuadrilla y distrito');
+         return;
+      }
+      
+      const finalCuadrilla = cuadrilla === 'Otro' ? cuadrillaCustom : cuadrilla;
+      
+      // Guardar en caché local el auth de la sesión
+      localStorage.setItem('win_session', JSON.stringify({
+        email,
+        cuadrilla: finalCuadrilla,
+        cuadrillaPersonalizada: cuadrillaCustom
+      }));
+
       // Mock login exitoso
       navigate('/buscar');
+    } else {
+      alert("Por favor completa todos los campos requeridos, incluyendo tu Cuadrilla.");
     }
   };
 
@@ -45,15 +72,15 @@ const Login = () => {
         <Card>
           <form className="login-form" onSubmit={handleLogin}>
             <Input 
-              label="Usuario o Correo" 
-              type="text" 
+              label="Usuario o Correo (*)" 
+              type="email" 
               placeholder="tecnico@win.pe" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
             <Input 
-              label="Contraseña" 
+              label="Contraseña (*)" 
               type="password" 
               placeholder="••••••••" 
               value={password}
@@ -61,7 +88,28 @@ const Login = () => {
               required
             />
             
-            <Button type="submit" className="login-submit-btn">
+            <div style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+              <Select 
+                label="Cuadrilla Asignada (*)" 
+                value={cuadrilla}
+                onChange={e => setCuadrilla(e.target.value)}
+                options={opcionesCuadrilla}
+              />
+            </div>
+
+            {cuadrilla === 'Otro' && (
+              <div style={{ marginBottom: '1rem' }}>
+                <Input 
+                  label="Especificar Cuadrilla/Distrito" 
+                  placeholder="Ej: AQP-SUR-01 (Bustamante)"
+                  value={cuadrillaCustom}
+                  onChange={e => setCuadrillaCustom(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+            
+            <Button type="submit" className="login-submit-btn" style={{ marginTop: '1rem' }}>
               Ingresar <ArrowRight size={18} />
             </Button>
           </form>

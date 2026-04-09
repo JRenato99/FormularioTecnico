@@ -4,13 +4,34 @@ import { Plus, Trash2, MapPin, Activity, Wifi, Save, Edit2 } from 'lucide-react'
 import { getRssiStyle } from '../../utils/constants';
 import './FormularioMediciones.css';
 
+/**
+ * Módulo Arquitectónico: Formulario de Mediciones Cuantitativas
+ * 
+ * Interfaz de grilla repetitiva que permite al técnico agregar cuartos y medir
+ * las señales duales (2.4/5G). Opera bajo una lógica de "Lectura vs Edición" (isSaved)
+ * para congelar inputs y protegerlos de toques falsos. 
+ * 
+ * @param {Object} props
+ * @param {Array} props.equipos - Diccionario inmutable consumido para listar MESH padres.
+ * @param {Array} props.mediciones - Array reverso de las mediciones hechas.
+ * @param {Function} props.setMediciones - Despachador de mutación global de Dashboard.
+ */
 const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaciones, onAgregarUbicacion }) => {
 
-  // Crear una nueva medición insertándola al INICIO de la lista
+  /**
+   * Crea una nueva carta de medición estéril.
+   * INGENIERÍA: Utiliza inserción inversa `[nuevaMedicion, ...mediciones]` (unshift paramétrico).
+   * Esto garantiza que el nuevo cuarto aparezca en la cima visual, ahorrando al técnico 
+   * el esfuerzo de hacer *scroll down* crónico al medir casas muy grandes.
+   */
   const addMedicion = () => {
+    // Bloqueador de Borradores Pendientes
+    const hasUnsaved = mediciones.some(m => !m.isSaved);
+    if (hasUnsaved) return alert("Por favor, guarda (💾) la medición que estás editando antes de añadir otra nueva.");
+
     const nuevaMedicion = {
       id: Date.now().toString(),
-      equipoId: equipos[0]?.id || '', // Por defecto el primero (ONT orginalmente)
+      equipoId: equipos[0]?.id || '', // Auto-asigna a la primera base (ONT por defecto)
       piso: '1',
       ubicacion: 'Sala',
       ubicacionPersonalizada: '',
@@ -19,50 +40,87 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
       rssi24g: '',
       velocidad5g: '',
       rssi5g: '',
-      isSaved: false // Estado de protección anti-edición
+      isSaved: false // Candado Lógico: Mientras sea falso, los Inputs son editables con bordes azules.
     };
     setMediciones([nuevaMedicion, ...mediciones]);
   };
 
+  /**
+   * Purgador de carta basado en timestamp ID.
+   */
   const removeMedicion = (id) => {
     setMediciones(mediciones.filter(m => m.id !== id));
   };
 
+  /**
+   * Modificador Atómico Genérico.
+   * Evita reescribir docenas de "setters" localizando el ID alterando un campo específico via Computable Props.
+   */
   const updateMedicion = (id, field, value) => {
     setMediciones(mediciones.map(m => m.id === id ? { ...m, [field]: value } : m));
   };
 
+  // ==========================================
+  // BLOQUES DE SANITIZACIÓN AUTOMATIZADA
+  // ==========================================
+
+  /**
+   * Extractor de Pisos (1-5).
+   * Consume RegEx `\D` removiendo carácteres no numéricos (letras, puntos, restas).
+   */
   const handlePisoChange = (id, val) => {
     let pStr = val.replace(/\D/g, '');
     if (!pStr) return updateMedicion(id, 'piso', '');
     let p = parseInt(pStr, 10);
+    // Compresión Geométrica (Trunca al perímetro legal)
     if (p < 1) p = 1;
     if (p > 5) p = 5;
     updateMedicion(id, 'piso', p.toString());
   };
 
+  /**
+   * Modificador ABS para Internet (Mbps).
+   * Impide lógicamente la concepción de "Velocidad Negativa (-30 Mbps)"
+   */
   const handleVelocidadChange = (id, field, val) => {
-    let vStr = val.replace(/\D/g, ''); // Sin negativos
+    let vStr = val.replace(/\D/g, ''); // RegEx absoluto y limpio
     updateMedicion(id, field, vStr);
   };
 
+  /**
+   * Inversor Matemático de Decibelios de Sensibilidad (RSSI dBm).
+   */
   const handleRssiChange = (id, field, val) => {
-    let vStr = val.replace(/-/g, ''); // Remover guiones tipográficos si hay
+    let vStr = val.replace(/-/g, ''); // Arranca cualquier prefijo tipográfico erróneo manual
     if (!vStr) return updateMedicion(id, field, '');
     let v = parseInt(vStr, 10);
     if (isNaN(v)) return;
-    updateMedicion(id, field, `-${Math.abs(v)}`);
+    updateMedicion(id, field, `-${Math.abs(v)}`); // Envuelve todo bajo prefijo negativo inamovible
   };
 
+  /**
+   * Condensador y Bloqueador de la Carta (Save Event)
+   * 1. Verifica campos vitales vacíos.
+   * 2. Si es customizado ("Otro"), levanta "hacia el Dashboard" su nombre p/ inyectarlo al general de toda la App.
+   * 3. Ancla la propiedad `isSaved: true` volviendo el HTML una placa *ReadOnly*.
+   */
   const handleSaveMedicion = (m) => {
     if (!m.piso || (m.ubicacion === 'Otro' && !m.ubicacionPersonalizada)) {
       return alert("Falta piso o nombre del ambiente");
     }
-    // Propagación de ubicaciones global
+    // Propagación de ubicaciones global por State Uplifting
     if (m.ubicacion === 'Otro') onAgregarUbicacion(m.ubicacionPersonalizada);
     updateMedicion(m.id, 'isSaved', true);
   };
 
+  // ==========================================
+  // COMPONENTES AUXILIARES UI
+  // ==========================================
+
+  /**
+   * Pequeño Tag renderizado sobre la marcha que colorea (Verde/Amarillo/Rojo)
+   * el puntaje de señal en milisegundos tras tipearse su `rssiValue`.
+   */
   const RssiBadge = ({ rssiValue }) => {
     const styleInfo = getRssiStyle(rssiValue);
     if (!styleInfo) return null;
@@ -81,7 +139,7 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
           <p className="form-mediciones-subtitle">Registra las velocidades en cada habitación del domicilio</p>
          </div>
          <Button onClick={addMedicion} disabled={equipos.length === 0}>
-           <Plus size={18} /> Añadir Ambiente
+           <Plus size={18} /> Añadir Medición
          </Button>
       </div>
 
@@ -93,8 +151,11 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
         </div>
       )}
 
+      {/* RENDERIZADOR DEL ARRAY (De arriba(index 0) hacia abajo) */}
       <div className="mediciones-list">
         {mediciones.map((m, index) => {
+          
+          // Alias booleano que apaga los 'Input' si la medición está salvaguardada en disco lógico.
           const readonly = m.isSaved;
 
           return (
@@ -127,7 +188,7 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
                   value={m.equipoId}
                   onChange={e => updateMedicion(m.id, 'equipoId', e.target.value)}
                   options={equipos.map(e => ({ label: `${e.nombre} (${e.ambienteFinal})`, value: e.id }))}
-                  disabled={readonly}
+                  disabled={readonly} // Si readonly=true, este combobox no despliega ni captura eventos.
                 />
                 <Input 
                   label="Piso" 
@@ -171,7 +232,7 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
                     <Wifi size={16} /> Banda 2.4 GHz
                   </h5>
                   <div className="medicion-data-grid">
-                    <Input 
+                     <Input 
                       label="Velocidad (Mbps)" 
                       type="number"
                       placeholder="Ej: 80" 

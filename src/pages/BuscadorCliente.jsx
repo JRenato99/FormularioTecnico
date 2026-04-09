@@ -3,24 +3,49 @@ import { useNavigate } from 'react-router-dom';
 import { Header } from '../components/layout/Header';
 import { Card, Input, Button } from '../components/ui';
 import { Search, User, MapPin } from 'lucide-react';
-import './BuscadorCliente.css'; // Importación de clases encapsuladas
+import './BuscadorCliente.css'; 
 
 /**
- * Componente BuscadorCliente
- * Pantalla de validación en la cual el usuario ingresa el código del cliente para abrir el flujo de trabajo.
+ * Componente principal del módulo de Autenticación/Ruteo de Visita.
+ * 
+ * Funciona como una barrera de inicialización lógica. El técnico debe proveer
+ * un código de Orden de Trabajo (OT) válido. Tras "validar" vía mock (simulando backend),
+ * obliga a designar el factor de forma de la locación (Casa o Departamento) y empuja
+ * toda esta data vía Router State hacia el componente principal de reportes.
+ * 
+ * @component
+ * @example
+ * return <BuscadorCliente />
  */
 const BuscadorCliente = () => {
   const navigate = useNavigate();
   
-  // Estado para capturar la escritura del técnico y el cliente encontrado
+  // ==========================================
+  // ESTADOS DEL COMPONENTE
+  // ==========================================
+
+  /** @type {[string, function]} Código ingresado manualmente por el teclado */
   const [codigo, setCodigo] = useState('');
+  
+  /** @type {[object|null, function]} Representa al payload del cliente extraído de base de datos */
   const [cliente, setCliente] = useState(null);
+  
+  /** @type {[boolean, function]} Bandera para suspender clicks múltiples mientras resuelve red */
   const [loading, setLoading] = useState(false);
-  const [tipoVivienda, setTipoVivienda] = useState(''); // Estado para Casa/Departamento
+  
+  /** @type {[string, function]} Selector crítico de forma geométrica del predio ('Casa' | 'Departamento') */
+  const [tipoVivienda, setTipoVivienda] = useState('');
+
+  // ==========================================
+  // MANEJADORES DE EVENTOS
+  // ==========================================
 
   /**
-   * Obtiene la orden del backend utilizando el código.
-   * Se simula mediante setTimeout un loading (carga de red).
+   * Captura el Evento Submit del buscador.
+   * Evita recarga, activa el booleano `loading` y expone un timeout (como Promise falsa)
+   * que rellenará el diccionario de cliente simulando una base SQL real.
+   * 
+   * @param {React.FormEvent<HTMLFormElement>} e Evento estándar del DOM.
    */
   const handleBuscar = (e) => {
     e.preventDefault();
@@ -28,10 +53,10 @@ const BuscadorCliente = () => {
     
     setLoading(true);
     
-    // Mock de llamada asíncrona a API del cliente
+    // Mock Async API Simulation
     setTimeout(() => {
       setCliente({
-        codigo: codigo,
+        codigo: codigo, // Reciclamos el código exacto ingresado en vez de hardcodear nombre
         plan: '1000 Mbps - Fibra',
         direccion: 'Av. Javier Prado Este 1234, San Borja, Lima',
         tipo: 'Instalación Nueva'
@@ -41,7 +66,9 @@ const BuscadorCliente = () => {
   };
 
   /**
-   * Redirige al técnico hacia la topología tras verificar el cliente y la vivienda.
+   * Consolida la revisión y autoriza el cambio de vista hacia el "Dashboard Central".
+   * Este método inyecta un objeto State directamente dentro de la memoria de `react-router-dom`
+   * evadiendo parámetros expuestos en URL (?codigo=xxx), manteniéndolo seguro.
    */
   const handleContinuar = () => {
     if (!tipoVivienda) {
@@ -49,9 +76,13 @@ const BuscadorCliente = () => {
       return;
     }
     
-    // Pasamos el código de cliente dinámicamente mediante el router state
+    // El payload transporta variables al hijo mediante enrutador en memoria
     navigate('/dashboard', { state: { codigo: cliente.codigo, tipoVivienda } });
   };
+
+  // ==========================================
+  // RENDERIZADO (UI)
+  // ==========================================
 
   return (
     <div>
@@ -79,7 +110,7 @@ const BuscadorCliente = () => {
             </form>
           </Card>
 
-          {/* Renderizado Condicional: Solo muestra la UI del cliente si se encontró */}
+          {/* Bloque Inyectado Condicional: Solo despliega al encontrar info de BD */}
           {cliente && (
             <div className="animate-fade-in">
               <Card className="cliente-card">
@@ -101,7 +132,7 @@ const BuscadorCliente = () => {
                   <span className="cliente-info-value">{cliente.tipo}</span>
                 </div>
 
-                {/* Sector Selección de Vivienda Requirido */}
+                {/* Sector Selección de Vivienda Catenado (Requerimiento de Negocio) */}
                 <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem', background: 'rgba(255, 107, 0, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255, 107, 0, 0.2)' }}>
                   <h4 style={{ marginBottom: '0.8rem', color: 'var(--text-primary)', fontSize: '0.95rem' }}>Tipo de Domicilio (*)</h4>
                   <div style={{ display: 'flex', gap: '2rem' }}>

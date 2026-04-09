@@ -99,3 +99,15 @@ input, select {
   
   body { font-size: 14px; }
 }
+
+/* MODO DIA / TEMA CLARO */
+body.light-theme {
+  --win-bg-dark: #f0f4f8;
+  --win-bg-surface: #ffffff;
+  --win-bg-glass: rgba(255, 255, 255, 0.85);
+  --text-primary: #121620;
+  --text-secondary: #4a5568;
+  --text-muted: #a0aec0;
+  --border-color: #e2e8f0;
+  --input-bg: #edf2f7;
+}

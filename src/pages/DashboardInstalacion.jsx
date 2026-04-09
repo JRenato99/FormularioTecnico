@@ -4,24 +4,28 @@ import { Header } from '../components/layout/Header';
 import { Button } from '../components/ui';
 import TopologiaRed from '../components/features/TopologiaRed';
 import FormularioMediciones from '../components/features/FormularioMediciones';
+import FormularioWinbox from '../components/features/FormularioWinbox';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { Download, CheckCircle, FileSpreadsheet } from 'lucide-react';
 import { getRssiStyle, UBICACIONES } from '../utils/constants';
 import './DashboardInstalacion.css';
 
+/**
+ * Componente Principal e Integrador: Dashboard de Instalación
+ */
 const DashboardInstalacion = () => {
-  // Rutas: Obtenemos el codigo del paso 1 (Buscador)
   const location = useLocation();
   const codigoCliente = location.state?.codigo || 'GENERIC-001';
 
+  // MATRIZ DE ESTADOS CENTRALES
   const [equipos, setEquipos] = useState([]);
   const [mediciones, setMediciones] = useState([]);
-  const [isExporting, setIsExporting] = useState(false);
-  const topologiaRef = useRef(null);
-  
-  // Estado Dinámico de Ubicaciones: Permite que AP y Mediciones agreguen "Otros" permanentemente 
+  const [winboxes, setWinboxes] = useState([]);
   const [listaUbicaciones, setListaUbicaciones] = useState(UBICACIONES);
+
+  const topologiaRef = useRef(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleAgregarUbicacionCustom = (nueva) => {
     if (nueva && nueva.trim() !== '' && !listaUbicaciones.includes(nueva)) {
@@ -31,19 +35,18 @@ const DashboardInstalacion = () => {
 
   const handleExportPDF = async () => {
     if (!topologiaRef.current) return;
-    setIsExporting(true);
+    setIsExporting(true); 
     
-    // Pequeño timeout para permitir que React re-renderice la interfaz ocultando los botones
     setTimeout(async () => {
       try {
         const canvas = await html2canvas(topologiaRef.current, {
           scale: 2, 
-          backgroundColor: '#121212', 
+          // Heredamos el color de fondo exacto dependiendo si es Tema Claro u Oscuro.
+          backgroundColor: getComputedStyle(document.body).getPropertyValue('background-color') || '#121212', 
           useCORS: true,
         });
         
         const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        
         const pdf = new jsPDF({
           orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
           unit: 'px',
@@ -57,57 +60,61 @@ const DashboardInstalacion = () => {
         console.error("Error generando PDF", error);
         alert('Hubo un error al generar el PDF. Revisa la consola.');
       } finally {
-        setIsExporting(false);
+        setIsExporting(false); 
       }
     }, 100);
   };
 
+  /**
+   * Creador de Reporte unificado Excel (CSV).
+   * Contiene una tabla principal superior con las lecturas ambientales, 
+   * y añade una sub-tabla inferior para los decodificadores Winbox detectados.
+   */
   const handleExportCSV = () => {
-    // 1. Validar campos en blanco
+    
+    // ==========================================
+    // 1. AUDITORÍA (BLOQUEADOR DE BLANCOS)
+    // ==========================================
     for (let i = 0; i < mediciones.length; i++) {
       const m = mediciones[i];
       if (!m.piso || (m.ubicacion === 'Otro' && !m.ubicacionPersonalizada)) {
         return alert(`La medición #${i + 1} tiene campos de ubicación o piso en blanco.`);
       }
       if (!m.isSaved) {
-        return alert(`La medición #${i + 1} no está guardada. Por favor presiona Guardar en el bloque antes de exportar.`);
+        return alert(`La medición #${i + 1} no está guardada. Por favor presiona Guardar en su bloque respectivo.`);
       }
-      // Los mbps y rssi están validados individualmente, pero prevemos vacíos letales.
       if (m.velocidad24g === '' || m.rssi24g === '' || m.velocidad5g === '' || m.rssi5g === '') {
-        return alert(`La medición #${i + 1} requiere los campos de métricas. Llénalos con 0 u otro número si no aplica.`);
+        return alert(`La medición #${i + 1} requiere los campos numéricos llenos.`);
       }
     }
 
-    const headers = [
-      'Ambientes', 
-      'Piso', 
-      'Tiene linea de vista',
-      'Velocidad 2.4 GHz (Mbps)', 
-      'Nivel de Sensibilidad 2.4 GHz', 
-      'Nivel de Señal 2.4G',
-      'Velocidad 5 GHz (Mbps)', 
-      'Nivel de Sensibilidad 5 GHz', 
-      'Nivel de Señal 5G',
-      'Equipo al que estas conectado', 
-      'Posición de equipo físico', 
-      'Piso de equipo físico', 
-      'Dependencia',
-      'Tipo de Conexión', 
-      'RX de BH Mesh', 
-      'Nivel de Señal BH'
+    for (let j = 0; j < winboxes.length; j++) {
+      const w = winboxes[j];
+      if (!w.isSaved) return alert(`El WINBOX #${j + 1} no ha sido guardado. Asegúralo antes de exportar.`);
+    }
+
+    // ==========================================
+    // 2. MATRIZ MEDICIONES 
+    // ==========================================
+    const headersMediciones = [
+      'Serial Number Router (S/N)', // <- Nueve requerimiento
+      'Ambientes', 'Piso', 'Tiene linea de vista',
+      'Velocidad 2.4 GHz (Mbps)', 'Nivel de Sensibilidad 2.4 GHz', 'Nivel de Señal 2.4G',
+      'Velocidad 5 GHz (Mbps)', 'Nivel de Sensibilidad 5 GHz', 'Nivel de Señal 5G',
+      'Equipo al que estas conectado', 'Posición de equipo físico', 'Piso de equipo físico', 
+      'Dependencia', 'Tipo de Conexión', 'RX de BH Mesh', 'Nivel de Señal BH'
     ];
     
-    const rows = mediciones.map(m => {
+    const rowsMediciones = mediciones.map(m => {
       const parent = equipos.find(e => e.id === m.equipoId);
       const grandparent = parent ? equipos.find(e => e.id === parent.parentId) : null;
 
+      const serialNumber = parent?.serialNumber || 'N/A';
       const ambiente = m.ubicacion === 'Otro' ? m.ubicacionPersonalizada : m.ubicacion;
       const lineaVista = m.lineaVista === 'Si' ? 'Con Linea de Vista' : 'Sin Linea de Vista';
-      
       const vel24 = `${m.velocidad24g} Mbps`;
       const rssi24 = `${m.rssi24g} dBm`;
       const eval24 = `Señal ${getRssiStyle(m.rssi24g)?.lbl.split(' (')[0] || 'N/A'}`; 
-
       const vel5 = `${m.velocidad5g} Mbps`;
       const rssi5 = `${m.rssi5g} dBm`;
       const eval5 = `Señal ${getRssiStyle(m.rssi5g)?.lbl.split(' (')[0] || 'N/A'}`;
@@ -127,6 +134,7 @@ const DashboardInstalacion = () => {
       const evalBh = (parent?.conexion === 'Inalámbrico' && parent?.rssiBackhaul) ? (`Señal ${getRssiStyle(parent.rssiBackhaul)?.lbl.split(' (')[0] || 'N/A'}`) : 'N/A';
 
       return [
+        serialNumber, 
         ambiente, m.piso, lineaVista,
         vel24, rssi24, eval24,
         vel5, rssi5, eval5,
@@ -135,8 +143,67 @@ const DashboardInstalacion = () => {
       ].map(field => `"${field}"`).join(',');
     });
 
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + headers.map(h => `"${h}"`).join(',') + "\n" + rows.join('\n');
-    const encodedUri = encodeURI(csvContent);
+    let csvMatrix = headersMediciones.map(h => `"${h}"`).join(',') + "\n" + rowsMediciones.join('\n');
+
+    // ==========================================
+    // 3. MATRIZ WINBOX (Agregada Condicionalmente abajo)
+    // ==========================================
+    if (winboxes.length > 0) {
+      csvMatrix += '\n\n';
+      csvMatrix += '"--- DETALLE TÉCNICO DE DECODIFICADORES WINBOX ---"\n';
+      
+      const headersWinboxes = [
+        'Serial Number (S/N) Winbox', 
+        'Ambiente Instalado',
+        'Conectado al Equipo',
+        'S/N del Equipo Padre',
+        'Modo de Conexión', 
+        'Ancho de Banda', 
+        'Niv. Sensibilidad Wi-Fi (dBm)',
+        'Check Evaluativo'
+      ];
+      
+      const rowsWinboxes = winboxes.map(w => {
+        const parent = equipos.find(e => e.id === w.equipoId);
+        const parentName = parent ? parent.nombre : 'N/A';
+        const parentSN = parent ? parent.serialNumber : 'N/A';
+        const ambiente = w.ubicacion === 'Otro' ? w.ubicacionPersonalizada : w.ubicacion;
+        
+        let vel = 'N/A';
+        let rssi = 'N/A';
+        let evalWB = 'N/A';
+        let connModeStr = 'Cableado (Gigabit)';
+
+        if (w.modoConexion === 'Inalámbrico') {
+           connModeStr = `Wi-Fi (${w.bandaWifi})`;
+           vel = `${w.velocidad} Mbps`;
+           rssi = `${w.rssi} dBm`;
+           evalWB = `Señal ${getRssiStyle(w.rssi)?.lbl.split(' (')[0] || 'N/A'}`;
+        } else {
+           vel = 'Cable UTP';
+           evalWB = 'Cableado (Estable)';
+        }
+
+        return [
+          w.serialNumber,
+          ambiente,
+          parentName,
+          parentSN,
+          connModeStr,
+          vel,
+          rssi,
+          evalWB
+        ].map(field => `"${field}"`).join(',');
+      });
+
+      csvMatrix += headersWinboxes.map(h => `"${h}"`).join(',') + "\n" + rowsWinboxes.join('\n');
+    }
+
+    // ==========================================
+    // 4. DESCARGA
+    // ==========================================
+    const csvFinal = "data:text/csv;charset=utf-8,\uFEFF" + csvMatrix;
+    const encodedUri = encodeURI(csvFinal);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", `Reporte_Mediciones_WIN_${codigoCliente}.csv`);
@@ -150,7 +217,6 @@ const DashboardInstalacion = () => {
       <Header />
       <div className="layout-container animate-fade-in">
         
-        {/* Cabecera del Formulario */}
         <div className="dashboard-header" style={{ alignItems: 'flex-start' }}>
           <div>
             <h1 className="dashboard-title">Formulario de Instalación</h1>
@@ -169,14 +235,14 @@ const DashboardInstalacion = () => {
               disabled={mediciones.length === 0}
               variant="primary"
             >
-              <FileSpreadsheet size={18} /> Exportar Mediciones CSV
+              <FileSpreadsheet size={18} /> Exportar Reporte Excel
             </Button>
           </div>
         </div>
 
         <div className="dashboard-content-grid">
           
-          <div ref={topologiaRef} style={{ background: '#121212', padding: '1rem', borderRadius: '12px' }}>
+          <div ref={topologiaRef} style={{ background: 'var(--win-bg-dark)', padding: '1rem', borderRadius: '12px' }}>
             <TopologiaRed 
                equipos={equipos} 
                setEquipos={setEquipos} 
@@ -187,6 +253,14 @@ const DashboardInstalacion = () => {
           </div>
           
           <div>
+            <FormularioWinbox 
+               equipos={equipos} 
+               winboxes={winboxes} 
+               setWinboxes={setWinboxes} 
+               listaUbicaciones={listaUbicaciones}
+               onAgregarUbicacion={handleAgregarUbicacionCustom}
+            />
+
             <FormularioMediciones 
                equipos={equipos} 
                mediciones={mediciones} 

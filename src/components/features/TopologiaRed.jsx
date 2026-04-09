@@ -1,14 +1,29 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
-import { Plus, Trash2, Router, Wifi } from 'lucide-react';
+import { Plus, Trash2, Router, Wifi, Hash } from 'lucide-react';
 import { LEYENDA, getRssiStyle } from '../../utils/constants';
 import './Topologia.css';
 
+/**
+ * Módulo Arquitectónico: Topología de Red
+ * 
+ * Gestiona y despliega un árbol recursivo del mapa físico de conexión.
+ * Las mecánicas críticas de este archivo incluyen el filtro anti-negativos 
+ * para el RSSI y validaciones booleanas impidiendo submit vacíos.
+ * 
+ * @param {Object} props
+ * @param {Array} props.equipos - Diccionario padre conteniendo todos los AP/ONT 
+ * @param {boolean} props.isExporting - Bandera UI que esconde los botones al imprimir Canvas
+ * @param {Array} props.listaUbicaciones - Listado mutable central de sitios
+ */
 const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAgregarUbicacion }) => {
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddOnt, setShowAddOnt] = useState(false);
 
+  /** @type {[Object, function]} Borrador volátil para las cajas al añadir un Access Point (Mesh/Cable) */
   const [newAp, setNewAp] = useState({
+    serialNumber: '',
     parentId: 'ONT',
     conexion: 'Cableado', // Cableado | Inalámbrico
     banda: '5G', // 2.4G | 5G
@@ -18,7 +33,9 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     ambientePersonalizado: ''
   });
 
+  /** @type {[Object, function]} Borrador volátil para el setup de Matriz */
   const [newOnt, setNewOnt] = useState({
+    serialNumber: '',
     piso: '1',
     ambiente: 'Sala',
     ambientePersonalizado: ''
@@ -28,7 +45,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   const apCount = equipos.filter(e => e.tipo === 'AP').length;
 
   const handlePisoChange = (val, isOnt) => {
-    let pStr = val.replace(/\D/g, ''); // Remover negativos y no dígitos
+    let pStr = val.replace(/\D/g, ''); 
     if (!pStr) {
       if (isOnt) setNewOnt({...newOnt, piso: ''});
       else setNewAp({...newAp, piso: ''});
@@ -43,15 +60,15 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   };
 
   const handleRssiChange = (val) => {
-    let vStr = val.replace(/-/g, ''); // Remover cualquier guion previo preventivamente
+    let vStr = val.replace(/-/g, ''); 
     if (!vStr) return setNewAp({...newAp, rssiBackhaul: ''});
     let v = parseInt(vStr, 10);
     if (isNaN(v)) return;
-    setNewAp({...newAp, rssiBackhaul: `-${Math.abs(v)}`});
+    setNewAp({...newAp, rssiBackhaul: `-${Math.abs(v)}`}); 
   };
 
   const handleAddOnt = () => {
-    // Validar que no existan campos vacíos críticos
+    if (!newOnt.serialNumber) return alert('Por favor ingresa el Número de Serie (S/N) de la ONT.');
     if (!newOnt.piso) return alert('Por favor ingresa el Piso de la ONT.');
     if (newOnt.ambiente === 'Otro' && !newOnt.ambientePersonalizado) return alert('Por favor ingresa el nombre manual del ambiente.');
 
@@ -60,6 +77,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
 
     setEquipos([{
       id: 'ONT',
+      serialNumber: newOnt.serialNumber,
       nombre: 'ONT',
       tipo: 'ONT',
       piso: newOnt.piso,
@@ -71,8 +89,10 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   const handleAddAp = () => {
     if (apCount >= 8) return;
     
+    if (!newAp.serialNumber) return alert("Debes ingresar el S/N del AP.");
     if (!newAp.piso) return alert("Debes rellenar el Piso del Access Point.");
     if (newAp.ambiente === 'Otro' && !newAp.ambientePersonalizado) return alert("Por favor escribe el nombre del ambiente.");
+    
     const isWireless = newAp.conexion === 'Inalámbrico';
     if (isWireless && !newAp.rssiBackhaul) return alert("Si configuras enlace Inalámbrico MESH, requieres escribir la señal RSSI del Backhaul.");
 
@@ -82,6 +102,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     const newId = `AP${apCount + 1}`;
     setEquipos([...equipos, {
       id: newId,
+      serialNumber: newAp.serialNumber,
       nombre: `Access Point ${apCount + 1}`,
       tipo: 'AP',
       ...newAp, 
@@ -122,8 +143,6 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
           return (
             <div key={hijo.id} className="tree-node-container animate-fade-in">
               <div className="node-wrapper">
-                
-                {/* Línea de conexión con badge renderizable para PDF */}
                 <div className={`tree-line ${lineClass}`}>
                   {hijo.conexion === 'Inalámbrico' && (
                     <span className={`wireless-badge ${hijo.banda === '5G' ? 'wb-5g' : 'wb-24g'}`}>
@@ -132,13 +151,15 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                   )}
                 </div>
                 
-                {/* Tarjeta del Nodo */}
                 <div className="node-card" style={{ borderColor: nodeBorderColor, background: nodeBgColor }}>
                   <div className="node-icon ap-icon" style={{ background: styleInfo ? styleInfo.color : '#444' }}>
                     <Wifi size={20} />
                   </div>
                   <div className="node-info">
                     <strong>{hijo.nombre}</strong>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)'}}>
+                      <Hash size={12}/> S/N: {hijo.serialNumber}
+                    </div>
                     <span className="node-meta">{hijo.conexion} {hijo.conexion === 'Inalámbrico' ? `(${hijo.banda})` : ''}</span>
                     <div className="node-location-badge">
                       P{hijo.piso} - {hijo.ambienteFinal}
@@ -154,6 +175,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                   </button>
                 </div>
               </div>
+              
               {renderArbol(hijo.id)}
             </div>
           );
@@ -183,15 +205,21 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
         <div className="add-ap-form glass-panel animate-fade-in" style={{ borderColor: 'var(--win-orange)' }}>
           <h4 style={{ color: 'var(--win-orange)' }}>Paso 1: Configurar ONT Base</h4>
           <div className="form-grid">
+            <Input 
+              label="Número de Serie (S/N) (*)" 
+              placeholder="Ej: ALCLB0123456" 
+              value={newOnt.serialNumber}
+              onChange={e => setNewOnt({...newOnt, serialNumber: e.target.value.toUpperCase()})}
+            />
              <Input 
-              label="Piso" 
+              label="Piso (*)" 
               type="number"
               placeholder="1 a 5" 
               value={newOnt.piso}
               onChange={e => handlePisoChange(e.target.value, true)}
             />
             <Select 
-              label="Ambiente" 
+              label="Ambiente (*)" 
               value={newOnt.ambiente}
               onChange={e => setNewOnt({...newOnt, ambiente: e.target.value})}
               options={listaUbicaciones.map(u => ({ label: u, value: u }))}
@@ -215,15 +243,21 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
         <div className="add-ap-form glass-panel animate-fade-in">
           <h4>Configurar Nuevo Access Point</h4>
           <div className="form-grid">
+            <Input 
+              label="Número de Serie (S/N) (*)" 
+              placeholder="Ej: ZTTEB0123456" 
+              value={newAp.serialNumber}
+              onChange={e => setNewAp({...newAp, serialNumber: e.target.value.toUpperCase()})}
+            />
              <Input 
-              label="Piso" 
+              label="Piso (*)" 
               type="number"
               placeholder="1 a 5" 
               value={newAp.piso}
               onChange={e => handlePisoChange(e.target.value, false)}
             />
             <Select 
-              label="Ambiente" 
+              label="Ambiente (*)" 
               value={newAp.ambiente}
               onChange={e => setNewAp({...newAp, ambiente: e.target.value})}
               options={listaUbicaciones.map(u => ({ label: u, value: u }))}
@@ -265,7 +299,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                   ]}
                 />
                 <Input 
-                  label="RSSI (dBm)" 
+                  label="RSSI (dBm) (*)" 
                   type="number"
                   placeholder="Ej: 55 se vuelve -55" 
                   value={newAp.rssiBackhaul}
@@ -324,6 +358,9 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                   </div>
                   <div className="node-info">
                     <strong>{ontNode.nombre}</strong>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', opacity: 0.8}}>
+                      <Hash size={12}/> S/N: {ontNode.serialNumber}
+                    </div>
                     <span className="node-meta">Raíz de Conexión</span>
                     <div className="node-location-badge">
                       P{ontNode.piso} - {ontNode.ambienteFinal}
