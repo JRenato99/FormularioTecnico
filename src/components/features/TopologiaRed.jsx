@@ -1,39 +1,31 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
-import { Plus, Trash2, Router, Wifi, Hash } from 'lucide-react';
+import { Plus, Trash2, Router, Wifi, Hash, Edit2 } from 'lucide-react';
 import { LEYENDA, getRssiStyle } from '../../utils/constants';
 import './Topologia.css';
 
 /**
  * Módulo Arquitectónico: Topología de Red
- * 
- * Gestiona y despliega un árbol recursivo del mapa físico de conexión.
- * Las mecánicas críticas de este archivo incluyen el filtro anti-negativos 
- * para el RSSI y validaciones booleanas impidiendo submit vacíos.
- * 
- * @param {Object} props
- * @param {Array} props.equipos - Diccionario padre conteniendo todos los AP/ONT 
- * @param {boolean} props.isExporting - Bandera UI que esconde los botones al imprimir Canvas
- * @param {Array} props.listaUbicaciones - Listado mutable central de sitios
  */
 const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAgregarUbicacion }) => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddOnt, setShowAddOnt] = useState(false);
 
-  /** @type {[Object, function]} Borrador volátil para las cajas al añadir un Access Point (Mesh/Cable) */
+  // Estado para Módulo de Edición Flotante
+  const [editingNode, setEditingNode] = useState(null);
+
   const [newAp, setNewAp] = useState({
     serialNumber: '',
     parentId: 'ONT',
-    conexion: 'Cableado', // Cableado | Inalámbrico
-    banda: '5G', // 2.4G | 5G
+    conexion: 'Cableado', 
+    banda: '5G', 
     rssiBackhaul: '',
     piso: '',
     ambiente: 'Sala',
     ambientePersonalizado: ''
   });
 
-  /** @type {[Object, function]} Borrador volátil para el setup de Matriz */
   const [newOnt, setNewOnt] = useState({
     serialNumber: '',
     piso: '1',
@@ -44,27 +36,28 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   const ontNode = equipos.find(e => e.tipo === 'ONT');
   const apCount = equipos.filter(e => e.tipo === 'AP').length;
 
-  const handlePisoChange = (val, isOnt) => {
+  const handlePisoChange = (val, mode) => {
     let pStr = val.replace(/\D/g, ''); 
-    if (!pStr) {
-      if (isOnt) setNewOnt({...newOnt, piso: ''});
-      else setNewAp({...newAp, piso: ''});
-      return;
+    let p = pStr ? parseInt(pStr, 10) : '';
+    if (p !== '') {
+      if (p < 1) p = 1;
+      if (p > 5) p = 5;
+      p = p.toString();
     }
-    let p = parseInt(pStr, 10);
-    if (p < 1) p = 1;
-    if (p > 5) p = 5;
     
-    if (isOnt) setNewOnt({...newOnt, piso: p.toString()});
-    else setNewAp({...newAp, piso: p.toString()});
+    if (mode === 'ont') setNewOnt({...newOnt, piso: p});
+    else if (mode === 'ap') setNewAp({...newAp, piso: p});
+    else if (mode === 'edit') setEditingNode({...editingNode, piso: p});
   };
 
-  const handleRssiChange = (val) => {
+  const handleRssiChange = (val, isEdit = false) => {
     let vStr = val.replace(/-/g, ''); 
-    if (!vStr) return setNewAp({...newAp, rssiBackhaul: ''});
-    let v = parseInt(vStr, 10);
-    if (isNaN(v)) return;
-    setNewAp({...newAp, rssiBackhaul: `-${Math.abs(v)}`}); 
+    let finalVal = '';
+    if (vStr && !isNaN(parseInt(vStr, 10))) {
+      finalVal = `-${Math.abs(parseInt(vStr, 10))}`;
+    }
+    if (isEdit) setEditingNode({...editingNode, rssiBackhaul: finalVal});
+    else setNewAp({...newAp, rssiBackhaul: finalVal});
   };
 
   const handleAddOnt = () => {
@@ -81,7 +74,10 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
       nombre: 'ONT',
       tipo: 'ONT',
       piso: newOnt.piso,
-      ambienteFinal: ambienteF
+      ambienteFinal: ambienteF,
+      // Props que la ONT original tiene puestas estructuralmente
+      ambiente: newOnt.ambiente,
+      ambientePersonalizado: newOnt.ambientePersonalizado
     }]);
     setShowAddOnt(false);
   };
@@ -99,10 +95,9 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     const ambienteF = newAp.ambiente === 'Otro' ? newAp.ambientePersonalizado : newAp.ambiente;
     if (newAp.ambiente === 'Otro') onAgregarUbicacion(newAp.ambientePersonalizado);
 
-    const newId = `AP${apCount + 1}`;
+    const newId = `AP${Date.now()}`;
     setEquipos([...equipos, {
       id: newId,
-      serialNumber: newAp.serialNumber,
       nombre: `Access Point ${apCount + 1}`,
       tipo: 'AP',
       ...newAp, 
@@ -112,6 +107,48 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     }]);
     
     setShowAddModal(false);
+  };
+
+  const startEditing = (nodo) => {
+    setShowAddModal(false);
+    setShowAddOnt(false);
+    // Clonación estricta para evitar mutaciones reactivas raras
+    setEditingNode({
+      ...nodo,
+      ambientePersonalizado: nodo.ambiente === 'Otro' ? (nodo.ambientePersonalizado || nodo.ambienteFinal) : ''
+    });
+  };
+
+  const handleUpdateNode = () => {
+    if (!editingNode.serialNumber) return alert("Debes ingresar el S/N.");
+    if (!editingNode.piso) return alert("Debes rellenar el Piso.");
+    if (editingNode.ambiente === 'Otro' && !editingNode.ambientePersonalizado) return alert("Escribe el nombre del ambiente especial.");
+    
+    const isWireless = editingNode.conexion === 'Inalámbrico';
+    if (editingNode.tipo === 'AP' && isWireless && !editingNode.rssiBackhaul) {
+      return alert("Si configuras enlace Inalámbrico MESH, requieres escribir la señal RSSI del Backhaul.");
+    }
+
+    const ambienteF = editingNode.ambiente === 'Otro' ? editingNode.ambientePersonalizado : editingNode.ambiente;
+    if (editingNode.ambiente === 'Otro') onAgregarUbicacion(editingNode.ambientePersonalizado);
+
+    const checkCircular = editingNode.id === editingNode.parentId;
+    if (checkCircular) return alert("Un equipo no puede conectarse a si mismo.");
+
+    setEquipos(equipos.map(e => {
+      if (e.id === editingNode.id) {
+        return {
+          ...e,
+          ...editingNode,
+          ambienteFinal: ambienteF,
+          banda: (editingNode.tipo === 'AP' && isWireless) ? editingNode.banda : null,
+          rssiBackhaul: (editingNode.tipo === 'AP' && isWireless) ? editingNode.rssiBackhaul : null
+        };
+      }
+      return e;
+    }));
+    
+    setEditingNode(null);
   };
 
   const handleRemoveAp = (id) => {
@@ -170,9 +207,16 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                       </span>
                     )}
                   </div>
-                  <button className={`del-btn ${isExporting ? 'exporting-hide' : ''}`} onClick={() => handleRemoveAp(hijo.id)} title="Eliminar equipo">
-                    <Trash2 size={16} />
-                  </button>
+                  
+                  {/* Botonera de Control de Nodo */}
+                  <div className={`node-actions ${isExporting ? 'exporting-hide' : ''}`} style={{display: 'flex', gap: '8px', position: 'absolute', right: '12px', top: '12px'}}>
+                    <button className="del-btn" style={{color: 'var(--win-blue-light)'}} onClick={() => startEditing(hijo)} title="Editar equipo">
+                      <Edit2 size={16} />
+                    </button>
+                    <button className="del-btn" onClick={() => handleRemoveAp(hijo.id)} title="Eliminar equipo">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
               
@@ -193,7 +237,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
         </div>
         
         <Button 
-          onClick={() => setShowAddModal(!showAddModal)} 
+          onClick={() => { setShowAddModal(!showAddModal); setEditingNode(null); }} 
           disabled={!ontNode || apCount >= 8}
           className={`${isExporting ? 'exporting-hide' : ''}`}
         >
@@ -201,7 +245,96 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
         </Button>
       </div>
 
-      {!ontNode && !isExporting && (
+      {/* COMPONENTE DE EDICIÓN FLOTANTE */}
+      {editingNode && !isExporting && (
+        <div className="add-ap-form glass-panel animate-fade-in" style={{ borderColor: 'var(--win-blue-light)' }}>
+          <h4 style={{ color: 'var(--win-blue-light)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+             <Edit2 size={18}/> Editar Registro: {editingNode.nombre}
+          </h4>
+          <div className="form-grid">
+            <Input 
+              label="Número de Serie (S/N) (*)" 
+              placeholder="Ej: ALCLB0123456" 
+              value={editingNode.serialNumber}
+              onChange={e => setEditingNode({...editingNode, serialNumber: e.target.value.toUpperCase()})}
+            />
+             <Input 
+              label="Piso (*)" 
+              type="number"
+              placeholder="1 a 5" 
+              value={editingNode.piso}
+              onChange={e => handlePisoChange(e.target.value, 'edit')}
+            />
+            <Select 
+              label="Ambiente (*)" 
+              value={editingNode.ambiente || 'Sala'}
+              onChange={e => setEditingNode({...editingNode, ambiente: e.target.value})}
+              options={listaUbicaciones.map(u => ({ label: u, value: u }))}
+            />
+            {editingNode.ambiente === 'Otro' && (
+              <Input 
+                label="Nombre del Ambiente" 
+                placeholder="Ej. Sótano"
+                value={editingNode.ambientePersonalizado}
+                onChange={e => setEditingNode({...editingNode, ambientePersonalizado: e.target.value})}
+              />
+            )}
+
+            {editingNode.tipo === 'AP' && (
+              <>
+                <Select 
+                  label="Conectar desde" 
+                  value={editingNode.parentId}
+                  onChange={e => setEditingNode({...editingNode, parentId: e.target.value})}
+                  options={equipos.filter(e => e.id !== editingNode.id).map(e => ({ label: `${e.nombre} (P${e.piso} - ${e.ambienteFinal})`, value: e.id }))}
+                />
+                <Select 
+                  label="Tipo de Conexión" 
+                  value={editingNode.conexion}
+                  onChange={e => setEditingNode({...editingNode, conexion: e.target.value})}
+                  options={[
+                    { label: 'Cableado (UTP)', value: 'Cableado' },
+                    { label: 'Inalámbrico', value: 'Inalámbrico' }
+                  ]}
+                />
+                
+                {editingNode.conexion === 'Inalámbrico' && (
+                   <>
+                    <Select 
+                      label="Frecuencia Backhaul" 
+                      value={editingNode.banda}
+                      onChange={e => setEditingNode({...editingNode, banda: e.target.value})}
+                      options={[
+                        { label: '5 GHz', value: '5G' },
+                        { label: '2.4 GHz', value: '2.4G' }
+                      ]}
+                    />
+                    <Input 
+                      label="RSSI (dBm) (*)" 
+                      type="number"
+                      placeholder="Ej: 55 se vuelve -55" 
+                      value={editingNode.rssiBackhaul}
+                      onChange={e => handleRssiChange(e.target.value, true)}
+                    />
+                   </>
+                )}
+              </>
+            )}
+
+          </div>
+          <div style={{display: 'flex', gap: '1rem', marginTop: '1rem'}}>
+             <Button style={{ flex: 1, background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} onClick={() => setEditingNode(null)}>
+               Cancelar
+             </Button>
+             <Button style={{ flex: 1, background: 'var(--win-blue-light)', color: 'white' }} onClick={handleUpdateNode}>
+               Actualizar Equipo
+             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* FORMULARIOS DE CREACIÓN */}
+      {!ontNode && !isExporting && !editingNode && (
         <div className="add-ap-form glass-panel animate-fade-in" style={{ borderColor: 'var(--win-orange)' }}>
           <h4 style={{ color: 'var(--win-orange)' }}>Paso 1: Configurar ONT Base</h4>
           <div className="form-grid">
@@ -216,7 +349,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
               type="number"
               placeholder="1 a 5" 
               value={newOnt.piso}
-              onChange={e => handlePisoChange(e.target.value, true)}
+              onChange={e => handlePisoChange(e.target.value, 'ont')}
             />
             <Select 
               label="Ambiente (*)" 
@@ -239,7 +372,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
         </div>
       )}
 
-      {showAddModal && ontNode && !isExporting && (
+      {showAddModal && ontNode && !isExporting && !editingNode && (
         <div className="add-ap-form glass-panel animate-fade-in">
           <h4>Configurar Nuevo Access Point</h4>
           <div className="form-grid">
@@ -254,7 +387,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
               type="number"
               placeholder="1 a 5" 
               value={newAp.piso}
-              onChange={e => handlePisoChange(e.target.value, false)}
+              onChange={e => handlePisoChange(e.target.value, 'ap')}
             />
             <Select 
               label="Ambiente (*)" 
@@ -303,7 +436,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                   type="number"
                   placeholder="Ej: 55 se vuelve -55" 
                   value={newAp.rssiBackhaul}
-                  onChange={e => handleRssiChange(e.target.value)}
+                  onChange={e => handleRssiChange(e.target.value, false)}
                 />
                </>
             )}
@@ -314,6 +447,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
         </div>
       )}
 
+      {/* LEYENDA */}
       {ontNode && (
         <div className="leyenda-container">
           <div className="leyenda-seccion">
@@ -347,6 +481,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
         </div>
       )}
 
+      {/* AREA DE DIBUJO TOPOLOGICÓ */}
       <div className="tree-wrapper">
         <div className="tree-root">
           {ontNode && (
@@ -366,6 +501,15 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                       P{ontNode.piso} - {ontNode.ambienteFinal}
                     </div>
                   </div>
+                  
+                  {/* Botonera Edición de Raíz */}
+                  <div className={`node-actions ${isExporting ? 'exporting-hide' : ''}`} style={{display: 'flex', gap: '8px', position: 'absolute', right: '12px', top: '12px'}}>
+                    <button className="del-btn" style={{color: 'var(--win-blue-light)'}} onClick={() => startEditing(ontNode)} title="Editar equipo">
+                      <Edit2 size={16} />
+                    </button>
+                    {/* A la ONT usualmente no se le pone basurero unitario a menos que limpies el board general, pero mantenemos tu flow actual */}
+                  </div>
+
                 </div>
               </div>
               {renderArbol('ONT')}

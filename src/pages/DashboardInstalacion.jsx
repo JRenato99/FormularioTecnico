@@ -5,6 +5,7 @@ import { Button } from '../components/ui';
 import TopologiaRed from '../components/features/TopologiaRed';
 import FormularioMediciones from '../components/features/FormularioMediciones';
 import FormularioWinbox from '../components/features/FormularioWinbox';
+import FormularioWintv from '../components/features/FormularioWintv';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { Download, CheckCircle, FileSpreadsheet } from 'lucide-react';
@@ -12,18 +13,18 @@ import { getRssiStyle, UBICACIONES } from '../utils/constants';
 import './DashboardInstalacion.css';
 
 /**
- * Componente Principal e Integrador: Dashboard de Instalación
+ * DashboardInstalacion
  */
 const DashboardInstalacion = () => {
   const location = useLocation();
   const codigoCliente = location.state?.codigo || 'GENERIC-001';
 
-  // MATRIZ DE ESTADOS CENTRALES
   const [equipos, setEquipos] = useState([]);
   const [mediciones, setMediciones] = useState([]);
   const [winboxes, setWinboxes] = useState([]);
+  const [televisores, setTelevisores] = useState([]); // Nuevo estado global para SmartTVs
+  
   const [listaUbicaciones, setListaUbicaciones] = useState(UBICACIONES);
-
   const topologiaRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -41,7 +42,6 @@ const DashboardInstalacion = () => {
       try {
         const canvas = await html2canvas(topologiaRef.current, {
           scale: 2, 
-          // Heredamos el color de fondo exacto dependiendo si es Tema Claro u Oscuro.
           backgroundColor: getComputedStyle(document.body).getPropertyValue('background-color') || '#121212', 
           useCORS: true,
         });
@@ -66,38 +66,38 @@ const DashboardInstalacion = () => {
   };
 
   /**
-   * Creador de Reporte unificado Excel (CSV).
-   * Contiene una tabla principal superior con las lecturas ambientales, 
-   * y añade una sub-tabla inferior para los decodificadores Winbox detectados.
+   * Exportador Centralizado CSV Trifásico.
+   * Compila: Mediciones (Arriba) > Winbox (Medio) > WinTV (Abajo)
    */
   const handleExportCSV = () => {
     
     // ==========================================
-    // 1. AUDITORÍA (BLOQUEADOR DE BLANCOS)
+    // 1. AUDITORÍA PRE-DESCARGA
     // ==========================================
     for (let i = 0; i < mediciones.length; i++) {
       const m = mediciones[i];
       if (!m.piso || (m.ubicacion === 'Otro' && !m.ubicacionPersonalizada)) {
-        return alert(`La medición #${i + 1} tiene campos de ubicación o piso en blanco.`);
+        return alert(`La medición #${i + 1} tiene campos de ubicación en blanco.`);
       }
-      if (!m.isSaved) {
-        return alert(`La medición #${i + 1} no está guardada. Por favor presiona Guardar en su bloque respectivo.`);
-      }
+      if (!m.isSaved) return alert(`La medición #${i + 1} no está guardada.`);
       if (m.velocidad24g === '' || m.rssi24g === '' || m.velocidad5g === '' || m.rssi5g === '') {
         return alert(`La medición #${i + 1} requiere los campos numéricos llenos.`);
       }
     }
 
     for (let j = 0; j < winboxes.length; j++) {
-      const w = winboxes[j];
-      if (!w.isSaved) return alert(`El WINBOX #${j + 1} no ha sido guardado. Asegúralo antes de exportar.`);
+      if (!winboxes[j].isSaved) return alert(`El WINBOX #${j + 1} no ha sido guardado.`);
+    }
+
+    for (let k = 0; k < televisores.length; k++) {
+      if (!televisores[k].isSaved) return alert(`El Televisor WINTV #${k + 1} no ha sido guardado.`);
     }
 
     // ==========================================
     // 2. MATRIZ MEDICIONES 
     // ==========================================
     const headersMediciones = [
-      'Serial Number Router (S/N)', // <- Nueve requerimiento
+      'Serial Number Router (S/N)', 
       'Ambientes', 'Piso', 'Tiene linea de vista',
       'Velocidad 2.4 GHz (Mbps)', 'Nivel de Sensibilidad 2.4 GHz', 'Nivel de Señal 2.4G',
       'Velocidad 5 GHz (Mbps)', 'Nivel de Sensibilidad 5 GHz', 'Nivel de Señal 5G',
@@ -134,19 +134,15 @@ const DashboardInstalacion = () => {
       const evalBh = (parent?.conexion === 'Inalámbrico' && parent?.rssiBackhaul) ? (`Señal ${getRssiStyle(parent.rssiBackhaul)?.lbl.split(' (')[0] || 'N/A'}`) : 'N/A';
 
       return [
-        serialNumber, 
-        ambiente, m.piso, lineaVista,
-        vel24, rssi24, eval24,
-        vel5, rssi5, eval5,
-        parentName, parentLoc, parentPiso, 
-        dependencia, tipoConn, rxBh, evalBh
+        serialNumber, ambiente, m.piso, lineaVista, vel24, rssi24, eval24, vel5, rssi5, eval5,
+        parentName, parentLoc, parentPiso, dependencia, tipoConn, rxBh, evalBh
       ].map(field => `"${field}"`).join(',');
     });
 
     let csvMatrix = headersMediciones.map(h => `"${h}"`).join(',') + "\n" + rowsMediciones.join('\n');
 
     // ==========================================
-    // 3. MATRIZ WINBOX (Agregada Condicionalmente abajo)
+    // 3. MATRIZ WINBOX
     // ==========================================
     if (winboxes.length > 0) {
       csvMatrix += '\n\n';
@@ -185,14 +181,7 @@ const DashboardInstalacion = () => {
         }
 
         return [
-          w.serialNumber,
-          ambiente,
-          parentName,
-          parentSN,
-          connModeStr,
-          vel,
-          rssi,
-          evalWB
+          w.serialNumber, ambiente, parentName, parentSN, connModeStr, vel, rssi, evalWB
         ].map(field => `"${field}"`).join(',');
       });
 
@@ -200,7 +189,37 @@ const DashboardInstalacion = () => {
     }
 
     // ==========================================
-    // 4. DESCARGA
+    // 4. MATRIZ STREAMING WINTV (NUEVA)
+    // ==========================================
+    if (televisores.length > 0) {
+      csvMatrix += '\n\n';
+      csvMatrix += '"--- APLICACIÓN STREAMING WINTV ---"\n';
+      
+      const headersWintv = [
+        'Ambiente (Visualización)', 
+        'Marca de SmartTV',
+        'Modelo del Televisor',
+        'Modalidad de Red'
+      ];
+      
+      const rowsWintv = televisores.map(t => {
+        const ambienteV = t.ubicacion === 'Otro' ? t.ubicacionPersonalizada : t.ubicacion;
+        const marcaV = t.marca === 'Otro' ? t.marcaPersonalizada : t.marca;
+
+        return [
+          ambienteV,
+          marcaV,
+          t.modelo,
+          t.modoConexion
+        ].map(field => `"${field}"`).join(',');
+      });
+
+      csvMatrix += headersWintv.map(h => `"${h}"`).join(',') + "\n" + rowsWintv.join('\n');
+    }
+
+
+    // ==========================================
+    // 5. DESCARGADOR IO
     // ==========================================
     const csvFinal = "data:text/csv;charset=utf-8,\uFEFF" + csvMatrix;
     const encodedUri = encodeURI(csvFinal);
@@ -253,6 +272,7 @@ const DashboardInstalacion = () => {
           </div>
           
           <div>
+            {/* Winbox Arriba */}
             <FormularioWinbox 
                equipos={equipos} 
                winboxes={winboxes} 
@@ -261,10 +281,19 @@ const DashboardInstalacion = () => {
                onAgregarUbicacion={handleAgregarUbicacionCustom}
             />
 
+            {/* Mediciones al Medio */}
             <FormularioMediciones 
                equipos={equipos} 
                mediciones={mediciones} 
                setMediciones={setMediciones} 
+               listaUbicaciones={listaUbicaciones}
+               onAgregarUbicacion={handleAgregarUbicacionCustom}
+            />
+            
+            {/* WinTV Abajo (Recibe su propia matriz) */}
+            <FormularioWintv 
+               televisores={televisores}
+               setTelevisores={setTelevisores}
                listaUbicaciones={listaUbicaciones}
                onAgregarUbicacion={handleAgregarUbicacionCustom}
             />
