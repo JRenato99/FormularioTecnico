@@ -30,7 +30,7 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
     if (hasUnsaved) return alert("Por favor, guarda (💾) la medición que estás editando antes de añadir otra nueva.");
 
     const nuevaMedicion = {
-      id: Date.now().toString(),
+      id: `MED-${Date.now()}-${Math.random().toString(36).substring(7)}`,
       equipoId: equipos[0]?.id || '', // Auto-asigna a la primera base (ONT por defecto)
       piso: '1',
       ubicacion: 'Sala',

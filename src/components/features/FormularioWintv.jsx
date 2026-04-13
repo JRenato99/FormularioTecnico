@@ -19,7 +19,7 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
     if (hasUnsaved) return alert("Por favor, guarda (💾) la TV que estás editando antes de añadir otro registro.");
 
     const nuevo = {
-      id: Date.now().toString(),
+      id: `TV-${Date.now()}-${Math.random().toString(36).substring(7)}`,
       ubicacion: 'Sala',
       ubicacionPersonalizada: '',
       marca: 'Samsung',

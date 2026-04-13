@@ -1,62 +1,49 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../components/layout/Header';
 import { Card, Input, Button } from '../components/ui';
-import { Search, User, MapPin } from 'lucide-react';
+import { Search, User, MapPin, List, Clock, CheckCircle, Send, FileText } from 'lucide-react';
 import './BuscadorCliente.css'; 
 
 /**
- * Componente principal del módulo de Autenticación/Ruteo de Visita.
- * 
- * Funciona como una barrera de inicialización lógica. El técnico debe proveer
- * un código de Orden de Trabajo (OT) válido. Tras "validar" vía mock (simulando backend),
- * obliga a designar el factor de forma de la locación (Casa o Departamento) y empuja
- * toda esta data vía Router State hacia el componente principal de reportes.
- * 
- * @component
- * @example
- * return <BuscadorCliente />
+ * Componente principal del módulo de Autenticación/Ruteo de Visita y visor de historial local.
  */
 const BuscadorCliente = () => {
   const navigate = useNavigate();
   
-  // ==========================================
-  // ESTADOS DEL COMPONENTE
-  // ==========================================
-
-  /** @type {[string, function]} Código ingresado manualmente por el teclado */
   const [codigo, setCodigo] = useState('');
-  
-  /** @type {[object|null, function]} Representa al payload del cliente extraído de base de datos */
   const [cliente, setCliente] = useState(null);
-  
-  /** @type {[boolean, function]} Bandera para suspender clicks múltiples mientras resuelve red */
   const [loading, setLoading] = useState(false);
-  
-  /** @type {[string, function]} Selector crítico de forma geométrica del predio ('Casa' | 'Departamento') */
   const [tipoVivienda, setTipoVivienda] = useState('');
+  const [historial, setHistorial] = useState([]);
+  const [tecnico, setTecnico] = useState(null);
 
-  // ==========================================
-  // MANEJADORES DE EVENTOS
-  // ==========================================
+  useEffect(() => {
+    // Cargar historial de órdenes desde localStorage (Caché local)
+    const stored = localStorage.getItem('win_orders');
+    if (stored) {
+      try {
+        setHistorial(JSON.parse(stored));
+      } catch (e) {
+        console.error("Error leyendo historial", e);
+      }
+    }
+    
+    const session = localStorage.getItem('win_session');
+    if (session) {
+      try {
+        setTecnico(JSON.parse(session));
+      } catch(e){}
+    }
+  }, []);
 
-  /**
-   * Captura el Evento Submit del buscador.
-   * Evita recarga, activa el booleano `loading` y expone un timeout (como Promise falsa)
-   * que rellenará el diccionario de cliente simulando una base SQL real.
-   * 
-   * @param {React.FormEvent<HTMLFormElement>} e Evento estándar del DOM.
-   */
   const handleBuscar = (e) => {
     e.preventDefault();
     if (!codigo) return;
-    
     setLoading(true);
-    
-    // Mock Async API Simulation
     setTimeout(() => {
       setCliente({
-        codigo: codigo, // Reciclamos el código exacto ingresado en vez de hardcodear nombre
+        codigo: codigo,
         plan: '1000 Mbps - Fibra',
         direccion: 'Av. Javier Prado Este 1234, San Borja, Lima',
         tipo: 'Instalación Nueva'
@@ -65,24 +52,30 @@ const BuscadorCliente = () => {
     }, 800);
   };
 
-  /**
-   * Consolida la revisión y autoriza el cambio de vista hacia el "Dashboard Central".
-   * Este método inyecta un objeto State directamente dentro de la memoria de `react-router-dom`
-   * evadiendo parámetros expuestos en URL (?codigo=xxx), manteniéndolo seguro.
-   */
   const handleContinuar = () => {
     if (!tipoVivienda) {
       alert("Por favor, selecciona si es Casa o Departamento antes de continuar.");
       return;
     }
-    
     // El payload transporta variables al hijo mediante enrutador en memoria
-    navigate('/dashboard', { state: { codigo: cliente.codigo, tipoVivienda } });
+    navigate('/formulario', { state: { codigo: cliente.codigo, tipoVivienda } });
   };
 
-  // ==========================================
-  // RENDERIZADO (UI)
-  // ==========================================
+  const handleCodigoChange = (e) => {
+    // Permitir solo números, bloquear letras o caracteres especiales
+    const value = e.target.value.replace(/\D/g, '');
+    setCodigo(value);
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'EN PROCESO': return <Clock size={16} color="#ffa500" />;
+      case 'ENVIADO': return <Send size={16} color="#1E90FF" />;
+      case 'APROBADO': return <CheckCircle size={16} color="#00C853" />;
+      case 'RECHAZADO': return <CheckCircle size={16} color="#FF3D00" />;
+      default: return null;
+    }
+  };
 
   return (
     <div>
@@ -91,7 +84,7 @@ const BuscadorCliente = () => {
         <div className="buscador-wrapper">
           <h1 className="buscador-title">Buscar Orden de Trabajo</h1>
           <p className="buscador-subtitle">
-            Ingresa el código de pedido o cliente para iniciar el registro.
+            Ingresa el código de pedido (solo números) para iniciar el registro.
           </p>
 
           <Card className="buscador-card">
@@ -99,9 +92,9 @@ const BuscadorCliente = () => {
               <div className="buscador-input-container">
                 <Input 
                   label="Código de Pedido / Cliente" 
-                  placeholder="Ej: WIN-849201" 
+                  placeholder="Ej: 849201" 
                   value={codigo}
-                  onChange={(e) => setCodigo(e.target.value)}
+                  onChange={handleCodigoChange}
                 />
               </div>
               <Button type="submit" disabled={loading} className="buscador-btn">
@@ -112,7 +105,7 @@ const BuscadorCliente = () => {
 
           {/* Bloque Inyectado Condicional: Solo despliega al encontrar info de BD */}
           {cliente && (
-            <div className="animate-fade-in">
+            <div className="animate-fade-in" style={{ marginTop: '2rem' }}>
               <Card className="cliente-card">
                 <div className="cliente-header">
                   <div className="cliente-icon-bg">
@@ -162,9 +155,63 @@ const BuscadorCliente = () => {
                 </div>
 
                 <Button className="continuar-btn" onClick={handleContinuar} disabled={!tipoVivienda}>
-                  Iniciar Mediciones
+                  Iniciar Formulario Técnico
                 </Button>
               </Card>
+            </div>
+          )}
+
+          {/* Seccion: Historial de Órdenes Locales */}
+          {!cliente && historial.length > 0 && (
+            <div className="historial-container animate-fade-in" style={{ marginTop: '3rem' }}>
+              
+              {/* Información del Técnico */}
+              {tecnico && (
+                 <Card style={{ marginBottom: '1.5rem', background: 'rgba(255, 107, 0, 0.05)', borderColor: 'var(--win-orange)', display: 'flex', flexDirection: 'column', gap: '0.3rem', padding: '1rem' }}>
+                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontWeight: 'bold' }}>
+                     <User size={18} color="var(--win-orange)" />
+                     Técnico Asignado: <span style={{ color: 'var(--win-orange)' }}>{tecnico.email}</span>
+                   </div>
+                   <div style={{ paddingLeft: '1.8rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                     Cuadrilla de Calle: <strong>{tecnico.cuadrilla}</strong>
+                   </div>
+                 </Card>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                <List size={20} color="var(--text-primary)" />
+                <h3 style={{ color: 'var(--text-primary)', fontSize: '1.2rem', margin: 0 }}>Tus Órdenes Gestionadas</h3>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {historial.slice().reverse().map((orden, idx) => (
+                  <Card key={idx} className="historial-card" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div>
+                        <h4 style={{ color: 'var(--text-primary)', margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                           <FileText size={16} /> Orden: {orden.codigoCliente}
+                        </h4>
+                        <p style={{ color: 'var(--text-secondary)', margin: '0.4rem 0 0 0', fontSize: '0.85rem' }}>
+                           Fecha: {new Date(orden.fechaGuardado || Date.now()).toLocaleString()}
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text-primary)', background: 'rgba(255,255,255,0.05)', padding: '0.4rem 0.8rem', borderRadius: '20px' }}>
+                        {getStatusIcon(orden.status)}
+                        {orden.status}
+                      </div>
+                    </div>
+                    
+                    {/* Detalles compactos para evitar que se vea descuadrado en móviles */}
+                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--win-blue-light)', background: 'rgba(0,0,0,0.15)', padding: '0.5rem', borderRadius: '6px' }}>
+                       <span>Equipos: {orden.equipos ? orden.equipos.length : 0}</span>
+                       <span>|</span>
+                       <span>Mediciones: {orden.mediciones ? orden.mediciones.length : 0}</span>
+                       <span>|</span>
+                       <span>Winbox: {orden.winboxes ? orden.winboxes.length : 0}</span>
+                    </div>
+
+                  </Card>
+                ))}
+              </div>
             </div>
           )}
         </div>

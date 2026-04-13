@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
-import { Plus, Trash2, Router, Wifi, Hash, Edit2 } from 'lucide-react';
+import { Plus, Trash2, Router, Wifi, Hash, Edit2, ShieldAlert } from 'lucide-react';
 import { LEYENDA, getRssiStyle } from '../../utils/constants';
 import './Topologia.css';
 
@@ -11,11 +11,13 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddOnt, setShowAddOnt] = useState(false);
-
-  // Estado para Módulo de Edición Flotante
   const [editingNode, setEditingNode] = useState(null);
 
-  const [newAp, setNewAp] = useState({
+  // Bandera para diferenciar AP tipo WIN de tipo Tercero (3th)
+  const [isAdding3thParty, setIsAdding3thParty] = useState(false);
+
+  // Estructura Vacía de un AP para resetear después de añadir
+  const initialApState = {
     serialNumber: '',
     parentId: 'ONT',
     conexion: 'Cableado', 
@@ -24,7 +26,9 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     piso: '',
     ambiente: 'Sala',
     ambientePersonalizado: ''
-  });
+  };
+
+  const [newAp, setNewAp] = useState(initialApState);
 
   const [newOnt, setNewOnt] = useState({
     serialNumber: '',
@@ -75,35 +79,50 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
       tipo: 'ONT',
       piso: newOnt.piso,
       ambienteFinal: ambienteF,
-      // Props que la ONT original tiene puestas estructuralmente
       ambiente: newOnt.ambiente,
-      ambientePersonalizado: newOnt.ambientePersonalizado
+      ambientePersonalizado: newOnt.ambientePersonalizado,
+      esTercero: false
     }]);
     setShowAddOnt(false);
+  };
+
+  const openAddApPanel = (is3th) => {
+    setIsAdding3thParty(is3th);
+    setNewAp(initialApState); // Vaciado estricto para evitar copiar del registro anterior
+    setEditingNode(null);
+    setShowAddModal(true);
   };
 
   const handleAddAp = () => {
     if (apCount >= 8) return;
     
-    if (!newAp.serialNumber) return alert("Debes ingresar el S/N del AP.");
+    if (!isAdding3thParty && !newAp.serialNumber) return alert("Debes ingresar el S/N del AP WIN.");
     if (!newAp.piso) return alert("Debes rellenar el Piso del Access Point.");
     if (newAp.ambiente === 'Otro' && !newAp.ambientePersonalizado) return alert("Por favor escribe el nombre del ambiente.");
     
     const isWireless = newAp.conexion === 'Inalámbrico';
-    if (isWireless && !newAp.rssiBackhaul) return alert("Si configuras enlace Inalámbrico MESH, requieres escribir la señal RSSI del Backhaul.");
+    
+    // Solo exigir RSSI si NO es un equipo de Terceros (Gestionable)
+    if (isWireless && !isAdding3thParty && !newAp.rssiBackhaul) {
+      return alert("Si configuras enlace Inalámbrico MESH, requieres escribir la señal RSSI del Backhaul.");
+    }
 
     const ambienteF = newAp.ambiente === 'Otro' ? newAp.ambientePersonalizado : newAp.ambiente;
     if (newAp.ambiente === 'Otro') onAgregarUbicacion(newAp.ambientePersonalizado);
 
     const newId = `AP${Date.now()}`;
+    const nameStr = isAdding3thParty ? `AP 3th Party` : `AP WIN`;
+    
     setEquipos([...equipos, {
       id: newId,
-      nombre: `Access Point ${apCount + 1}`,
+      nombre: nameStr,
       tipo: 'AP',
       ...newAp, 
+      serialNumber: isAdding3thParty ? 'NO-ASIGNADO' : newAp.serialNumber,
       ambienteFinal: ambienteF,
       banda: isWireless ? newAp.banda : null,
-      rssiBackhaul: isWireless ? newAp.rssiBackhaul : null
+      rssiBackhaul: (isWireless && !isAdding3thParty) ? newAp.rssiBackhaul : null,
+      esTercero: isAdding3thParty
     }]);
     
     setShowAddModal(false);
@@ -112,7 +131,6 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   const startEditing = (nodo) => {
     setShowAddModal(false);
     setShowAddOnt(false);
-    // Clonación estricta para evitar mutaciones reactivas raras
     setEditingNode({
       ...nodo,
       ambientePersonalizado: nodo.ambiente === 'Otro' ? (nodo.ambientePersonalizado || nodo.ambienteFinal) : ''
@@ -120,13 +138,13 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   };
 
   const handleUpdateNode = () => {
-    if (!editingNode.serialNumber) return alert("Debes ingresar el S/N.");
+    if (!editingNode.esTercero && !editingNode.serialNumber) return alert("Debes ingresar el S/N.");
     if (!editingNode.piso) return alert("Debes rellenar el Piso.");
     if (editingNode.ambiente === 'Otro' && !editingNode.ambientePersonalizado) return alert("Escribe el nombre del ambiente especial.");
     
     const isWireless = editingNode.conexion === 'Inalámbrico';
-    if (editingNode.tipo === 'AP' && isWireless && !editingNode.rssiBackhaul) {
-      return alert("Si configuras enlace Inalámbrico MESH, requieres escribir la señal RSSI del Backhaul.");
+    if (editingNode.tipo === 'AP' && isWireless && !editingNode.esTercero && !editingNode.rssiBackhaul) {
+      return alert("Requieres escribir la señal RSSI del Backhaul.");
     }
 
     const ambienteF = editingNode.ambiente === 'Otro' ? editingNode.ambientePersonalizado : editingNode.ambiente;
@@ -142,7 +160,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
           ...editingNode,
           ambienteFinal: ambienteF,
           banda: (editingNode.tipo === 'AP' && isWireless) ? editingNode.banda : null,
-          rssiBackhaul: (editingNode.tipo === 'AP' && isWireless) ? editingNode.rssiBackhaul : null
+          rssiBackhaul: (editingNode.tipo === 'AP' && isWireless && !editingNode.esTercero) ? editingNode.rssiBackhaul : null
         };
       }
       return e;
@@ -168,9 +186,22 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     return (
       <div className="tree-children">
         {hijos.map(hijo => {
-          const styleInfo = hijo.conexion === 'Inalámbrico' ? getRssiStyle(hijo.rssiBackhaul) : null;
-          const nodeBorderColor = styleInfo ? styleInfo.color : 'var(--border-color)';
-          const nodeBgColor = styleInfo ? styleInfo.bg : 'var(--input-bg)';
+          const is3th = hijo.esTercero;
+          const styleInfo = (hijo.conexion === 'Inalámbrico' && !is3th) ? getRssiStyle(hijo.rssiBackhaul) : null;
+          
+          let nodeBorderColor = 'var(--border-color)';
+          let nodeBgColor = 'var(--input-bg)';
+          let iconBgColor = '#444';
+
+          if (is3th) {
+             nodeBorderColor = '#555';
+             nodeBgColor = '#222';
+             iconBgColor = '#555';
+          } else if (styleInfo) {
+             nodeBorderColor = styleInfo.color;
+             nodeBgColor = styleInfo.bg;
+             iconBgColor = styleInfo.color;
+          }
           
           let lineClass = 'line-fo';
           if (hijo.conexion === 'Inalámbrico') {
@@ -189,19 +220,23 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                 </div>
                 
                 <div className="node-card" style={{ borderColor: nodeBorderColor, background: nodeBgColor }}>
-                  <div className="node-icon ap-icon" style={{ background: styleInfo ? styleInfo.color : '#444' }}>
-                    <Wifi size={20} />
+                  <div className="node-icon ap-icon" style={{ background: iconBgColor }}>
+                    {is3th ? <ShieldAlert size={20} /> : <Wifi size={20} />}
                   </div>
                   <div className="node-info">
                     <strong>{hijo.nombre}</strong>
-                    <div style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)'}}>
-                      <Hash size={12}/> S/N: {hijo.serialNumber}
-                    </div>
+                    
+                    {!is3th && (
+                      <div style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)'}}>
+                        <Hash size={12}/> S/N: {hijo.serialNumber}
+                      </div>
+                    )}
+                    
                     <span className="node-meta">{hijo.conexion} {hijo.conexion === 'Inalámbrico' ? `(${hijo.banda})` : ''}</span>
                     <div className="node-location-badge">
                       P{hijo.piso} - {hijo.ambienteFinal}
                     </div>
-                    {hijo.conexion === 'Inalámbrico' && hijo.rssiBackhaul && (
+                    {hijo.conexion === 'Inalámbrico' && hijo.rssiBackhaul && !is3th && (
                       <span style={{ fontSize: '0.85rem', color: styleInfo.color, fontWeight: '600' }}>
                         RSSI: {hijo.rssiBackhaul} dBm
                       </span>
@@ -210,7 +245,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                   
                   {/* Botonera de Control de Nodo */}
                   <div className={`node-actions ${isExporting ? 'exporting-hide' : ''}`} style={{display: 'flex', gap: '8px', position: 'absolute', right: '12px', top: '12px'}}>
-                    <button className="del-btn" style={{color: 'var(--win-blue-light)'}} onClick={() => startEditing(hijo)} title="Editar equipo">
+                    <button className="del-btn" style={{color: 'var(--text-secondary)'}} onClick={() => startEditing(hijo)} title="Editar equipo">
                       <Edit2 size={16} />
                     </button>
                     <button className="del-btn" onClick={() => handleRemoveAp(hijo.id)} title="Eliminar equipo">
@@ -230,34 +265,49 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
 
   return (
     <Card className="topologia-card">
-      <div className="topologia-header">
+      <div className="topologia-header" style={{ alignItems: 'flex-start' }}>
         <div>
           <h2>Topología de Red</h2>
-          <p className="subtitle">Configura y visualiza la distribución de equipos y enlaces (Backhaul)</p>
+          <p className="subtitle">Configura y visualiza la distribución de equipos WIN y Terceros</p>
         </div>
         
-        <Button 
-          onClick={() => { setShowAddModal(!showAddModal); setEditingNode(null); }} 
-          disabled={!ontNode || apCount >= 8}
-          className={`${isExporting ? 'exporting-hide' : ''}`}
-        >
-          <Plus size={18} /> Añadir AP ({apCount}/8)
-        </Button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
+          <Button 
+            onClick={() => openAddApPanel(false)} 
+            disabled={!ontNode || apCount >= 8}
+            className={`${isExporting ? 'exporting-hide' : ''}`}
+          >
+            <Plus size={18} /> Añadir AP WIN
+          </Button>
+          <Button 
+            variant="secondary"
+            onClick={() => openAddApPanel(true)} 
+            disabled={!ontNode || apCount >= 8}
+            className={`${isExporting ? 'exporting-hide' : ''}`}
+            style={{ fontSize: '0.8rem', padding: '0.5rem 1rem' }}
+          >
+            <Plus size={14} /> Añadir AP 3th
+          </Button>
+        </div>
       </div>
 
       {/* COMPONENTE DE EDICIÓN FLOTANTE */}
       {editingNode && !isExporting && (
-        <div className="add-ap-form glass-panel animate-fade-in" style={{ borderColor: 'var(--win-blue-light)' }}>
-          <h4 style={{ color: 'var(--win-blue-light)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div className="add-ap-form glass-panel animate-fade-in" style={{ borderColor: 'var(--text-secondary)' }}>
+          <h4 style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
              <Edit2 size={18}/> Editar Registro: {editingNode.nombre}
           </h4>
           <div className="form-grid">
-            <Input 
-              label="Número de Serie (S/N) (*)" 
-              placeholder="Ej: ALCLB0123456" 
-              value={editingNode.serialNumber}
-              onChange={e => setEditingNode({...editingNode, serialNumber: e.target.value.toUpperCase()})}
-            />
+            
+            {!editingNode.esTercero && (
+              <Input 
+                label="Número de Serie (S/N) (*)" 
+                placeholder="Ej: ALCLB0123456" 
+                value={editingNode.serialNumber}
+                onChange={e => setEditingNode({...editingNode, serialNumber: e.target.value.toUpperCase()})}
+              />
+            )}
+            
              <Input 
               label="Piso (*)" 
               type="number"
@@ -309,13 +359,16 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                         { label: '2.4 GHz', value: '2.4G' }
                       ]}
                     />
-                    <Input 
-                      label="RSSI (dBm) (*)" 
-                      type="number"
-                      placeholder="Ej: 55 se vuelve -55" 
-                      value={editingNode.rssiBackhaul}
-                      onChange={e => handleRssiChange(e.target.value, true)}
-                    />
+                    
+                    {!editingNode.esTercero && (
+                      <Input 
+                        label="RSSI (dBm) (*)" 
+                        type="number"
+                        placeholder="Ej: 55 se vuelve -55" 
+                        value={editingNode.rssiBackhaul}
+                        onChange={e => handleRssiChange(e.target.value, true)}
+                      />
+                    )}
                    </>
                 )}
               </>
@@ -326,14 +379,14 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
              <Button style={{ flex: 1, background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} onClick={() => setEditingNode(null)}>
                Cancelar
              </Button>
-             <Button style={{ flex: 1, background: 'var(--win-blue-light)', color: 'white' }} onClick={handleUpdateNode}>
+             <Button style={{ flex: 1, background: 'var(--text-secondary)', color: 'white', borderColor: 'var(--text-secondary)' }} onClick={handleUpdateNode}>
                Actualizar Equipo
              </Button>
           </div>
         </div>
       )}
 
-      {/* FORMULARIOS DE CREACIÓN */}
+      {/* FORMULARIOS DE CREACIÓN ONT */}
       {!ontNode && !isExporting && !editingNode && (
         <div className="add-ap-form glass-panel animate-fade-in" style={{ borderColor: 'var(--win-orange)' }}>
           <h4 style={{ color: 'var(--win-orange)' }}>Paso 1: Configurar ONT Base</h4>
@@ -372,16 +425,22 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
         </div>
       )}
 
+      {/* FORMULARIO DE CREACIÓN APs */}
       {showAddModal && ontNode && !isExporting && !editingNode && (
-        <div className="add-ap-form glass-panel animate-fade-in">
-          <h4>Configurar Nuevo Access Point</h4>
+        <div className="add-ap-form glass-panel animate-fade-in" style={{ borderColor: isAdding3thParty ? '#666' : 'var(--border-color)' }}>
+          <h4>{isAdding3thParty ? 'Configurar AP 3th Party (Sin Gestión)' : 'Configurar Nuevo Access Point WIN'}</h4>
           <div className="form-grid">
-            <Input 
-              label="Número de Serie (S/N) (*)" 
-              placeholder="Ej: ZTTEB0123456" 
-              value={newAp.serialNumber}
-              onChange={e => setNewAp({...newAp, serialNumber: e.target.value.toUpperCase()})}
-            />
+            
+            {/* Solo pedir SN si no es tercero */}
+            {!isAdding3thParty && (
+              <Input 
+                label="Número de Serie (S/N) (*)" 
+                placeholder="Ej: ZTTEB0123456" 
+                value={newAp.serialNumber}
+                onChange={e => setNewAp({...newAp, serialNumber: e.target.value.toUpperCase()})}
+              />
+            )}
+
              <Input 
               label="Piso (*)" 
               type="number"
@@ -431,19 +490,28 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                     { label: '2.4 GHz', value: '2.4G' }
                   ]}
                 />
-                <Input 
-                  label="RSSI (dBm) (*)" 
-                  type="number"
-                  placeholder="Ej: 55 se vuelve -55" 
-                  value={newAp.rssiBackhaul}
-                  onChange={e => handleRssiChange(e.target.value, false)}
-                />
+                
+                {/* RSSI solo si no es tercero */}
+                {!isAdding3thParty && (
+                  <Input 
+                    label="RSSI (dBm) (*)" 
+                    type="number"
+                    placeholder="Ej: 55 se vuelve -55" 
+                    value={newAp.rssiBackhaul}
+                    onChange={e => handleRssiChange(e.target.value, false)}
+                  />
+                )}
                </>
             )}
           </div>
-          <Button style={{ marginTop: '1rem', width: '100%' }} onClick={handleAddAp}>
-            Guardar y Añadir Equipo
-          </Button>
+          <div style={{display: 'flex', gap: '1rem', marginTop: '1rem'}}>
+             <Button style={{ flex: 1, background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} onClick={() => setShowAddModal(false)}>
+               Cancelar
+             </Button>
+             <Button style={{ flex: 1, background: isAdding3thParty ? '#444' : 'var(--win-blue-light)', color: 'white', borderColor: isAdding3thParty ? '#444' : 'var(--win-blue-light)' }} onClick={handleAddAp}>
+               Guardar Equipo
+             </Button>
+          </div>
         </div>
       )}
 
@@ -459,6 +527,10 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                   <span className="leyenda-texto">{item.lbl}</span>
                 </div>
               ))}
+              <div className="leyenda-item">
+                <div className="leyenda-color" style={{ background: '#555' }}></div>
+                <span className="leyenda-texto">Dispositivo NO Gestionable</span>
+              </div>
             </div>
           </div>
           <div className="leyenda-seccion side-border">
@@ -504,10 +576,9 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                   
                   {/* Botonera Edición de Raíz */}
                   <div className={`node-actions ${isExporting ? 'exporting-hide' : ''}`} style={{display: 'flex', gap: '8px', position: 'absolute', right: '12px', top: '12px'}}>
-                    <button className="del-btn" style={{color: 'var(--win-blue-light)'}} onClick={() => startEditing(ontNode)} title="Editar equipo">
+                    <button className="del-btn" style={{color: 'var(--text-secondary)'}} onClick={() => startEditing(ontNode)} title="Editar equipo">
                       <Edit2 size={16} />
                     </button>
-                    {/* A la ONT usualmente no se le pone basurero unitario a menos que limpies el board general, pero mantenemos tu flow actual */}
                   </div>
 
                 </div>

@@ -18,7 +18,7 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
     if (hasUnsaved) return alert("Por favor, guarda (💾) el Winbox que estás editando antes de añadir otro nuevo.");
 
     const nuevo = {
-      id: Date.now().toString(),
+      id: `WB-${Date.now()}-${Math.random().toString(36).substring(7)}`,
       serialNumber: '',
       equipoId: equipos[0]?.id || '',
       ubicacion: 'Sala',
