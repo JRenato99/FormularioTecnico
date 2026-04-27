@@ -43,6 +43,14 @@ const Login = () => {
     setCaptchaAnswer('');
   };
 
+  // Si ya tiene sesión activa, mandarlo a buscar
+  useEffect(() => {
+    const sessionStr = localStorage.getItem('win_session');
+    if (sessionStr) {
+      navigate('/buscar');
+    }
+  }, [navigate]);
+
   /**
    * Valida los campos y establece la sesión en localStorage.
    */
@@ -56,12 +64,22 @@ const Login = () => {
       return;
     }
 
-    // 2. Verificación de SUPERVISOR (Admin)
+    // 2. Verificación de SUPERVISOR / ADMINISTRADOR (Mock)
     if (email === 'admin' && password === 'admin') {
       localStorage.setItem('win_session', JSON.stringify({
-        email: 'ADMINISTRADOR',
-        role: 'SUPERVISOR',
+        email: 'ADMINISTRADOR GENERAL',
+        role: 'ADMINISTRADOR',
         cuadrilla: 'GERENCIA'
+      }));
+      navigate('/admin');
+      return;
+    }
+    
+    if (email === 'super' && password === 'super') {
+      localStorage.setItem('win_session', JSON.stringify({
+        email: 'SUPERVISOR ZONAL',
+        role: 'SUPERVISOR',
+        cuadrilla: 'LIMA-NTE-01'
       }));
       navigate('/admin');
       return;
