@@ -1,4 +1,7 @@
-/* Login.css - Estilos específicos para la página de Inicio de Sesión */
+/* Login.css
+   =========================================================================
+   Estilos específicos para la pantalla de Inicio de Sesión.
+   ========================================================================= */
 
 .login-page-container {
   min-height: 100vh;
@@ -11,7 +14,7 @@
 
 .login-form-wrapper {
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
 }
 
 .login-header {
@@ -43,9 +46,50 @@
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.2rem;
 }
 
 .login-submit-btn {
-  margin-top: 1rem;
+  margin-top: 0.5rem;
+}
+
+/* ─── Mensaje de Error ────────────────────────────────────────────────── */
+
+.login-error-msg {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.8rem 1rem;
+  background: rgba(255, 61, 0, 0.1);
+  border: 1px solid rgba(255, 61, 0, 0.3);
+  border-radius: 8px;
+  color: #FF6B6B;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* ─── Sección Captcha ─────────────────────────────────────────────────── */
+
+.login-captcha-section {
+  margin-top: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.login-captcha-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.login-captcha-question {
+  margin: 0 0 10px 0;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: var(--text-primary);
 }

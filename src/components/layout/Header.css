@@ -1,9 +1,13 @@
 /* Header.css */
+/* =========================================================================
+   Estilos para la barra de navegación superior (Header).
+   Incluye: branding, info de usuario, toggle tema y botón logout.
+   ========================================================================= */
 
 .app-header {
   background: var(--win-bg-surface);
   border-bottom: 1px solid var(--border-color);
-  padding: 1rem 2rem;
+  padding: 0.8rem 2rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -11,8 +15,10 @@
   top: 0;
   z-index: 100;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 0.8rem;
 }
+
+/* ─── Logo y Branding ─────────────────────────────────────────────────── */
 
 .header-logo-section {
   display: flex;
@@ -40,10 +46,12 @@
   font-weight: 300;
 }
 
+/* ─── Sección de Perfil ───────────────────────────────────────────────── */
+
 .header-profile-section {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.8rem;
 }
 
 .header-profile-info {
@@ -54,6 +62,10 @@
   margin: 0;
   font-size: 0.85rem;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: flex-end;
 }
 
 .header-profile-id {
@@ -62,13 +74,22 @@
   color: var(--text-secondary);
 }
 
-@media screen and (max-width: 768px) {
-  .app-header {
-    padding: 1rem;
-  }
+/* ─── Badge de Rol ────────────────────────────────────────────────────── */
+
+.header-rol-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid;
+  text-transform: uppercase;
 }
 
-.theme-toggle-btn {
+/* ─── Botones de Control ──────────────────────────────────────────────── */
+
+.theme-toggle-btn,
+.header-logout-btn {
   background: transparent;
   border: 1px solid var(--border-color);
   border-radius: 50%;
@@ -78,9 +99,29 @@
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  color: var(--text-secondary);
 }
 
 .theme-toggle-btn:hover {
   background: var(--win-bg-glass);
   transform: scale(1.05);
+}
+
+.header-logout-btn:hover {
+  background: rgba(255, 61, 0, 0.15);
+  border-color: #FF3D00;
+  color: #FF3D00;
+  transform: scale(1.05);
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────── */
+
+@media screen and (max-width: 768px) {
+  .app-header {
+    padding: 0.8rem 1rem;
+  }
+
+  .header-profile-info {
+    display: none;
+  }
 }

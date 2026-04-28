@@ -1,27 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Input, Button, Select } from '../components/ui';
-import { Wifi, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Wifi, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+import { initDefaultUsers, login, getSession } from '../utils/authService';
 import './Login.css';
 
 /**
  * Componente Login
- * Representa la pantalla de acceso principal para los técnicos y supervisores.
+ * ----------------
+ * Pantalla de acceso principal. Características:
+ * - Captcha matemático anti-bot.
+ * - Validación de credenciales contra el servicio local (authService).
+ * - Auto-registro de técnicos nuevos (se crean en la base local al primer login).
+ * - Redirección según rol:
+ *     ADMINISTRADOR / SUPERVISOR → /admin
+ *     TECNICO                    → /buscar
+ * - Mensajes descriptivos si la cuenta está bloqueada.
  */
 const Login = () => {
   const navigate = useNavigate();
   
-  // Estados locales para capturar los datos del formulario
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [cuadrilla, setCuadrilla] = useState('');
+  // ─── Estados del formulario ────────────────────────────────────────────
+  const [email, setEmail]                 = useState('');
+  const [password, setPassword]           = useState('');
+  const [cuadrilla, setCuadrilla]         = useState('');
   const [cuadrillaCustom, setCuadrillaCustom] = useState('');
+  const [errorMsg, setErrorMsg]           = useState('');
   
-  // Estados para el CAPTCHA Matemático
-  const [captchaNum1, setCaptchaNum1] = useState(0);
-  const [captchaNum2, setCaptchaNum2] = useState(0);
+  // ─── Estados del Captcha ───────────────────────────────────────────────
+  const [captchaNum1, setCaptchaNum1]     = useState(0);
+  const [captchaNum2, setCaptchaNum2]     = useState(0);
   const [captchaAnswer, setCaptchaAnswer] = useState('');
 
+  // ─── Catálogo de cuadrillas ────────────────────────────────────────────
   const opcionesCuadrilla = [
     { label: 'Seleccione su cuadrilla...', value: '' },
     { label: 'LIMA-NTE-01 (Los Olivos/SMP)', value: 'LIMA-NTE-01' },
@@ -32,86 +43,77 @@ const Login = () => {
     { label: 'Otro (Especificar)', value: 'Otro' }
   ];
 
-  // Generar CAPTCHA al montar el componente
+  // ─── Inicialización ───────────────────────────────────────────────────
   useEffect(() => {
+    // Crear usuarios semilla si es la primera ejecución
+    initDefaultUsers();
     generateCaptcha();
   }, []);
 
-  const generateCaptcha = () => {
-    setCaptchaNum1(Math.floor(Math.random() * 10) + 1); // 1-10
-    setCaptchaNum2(Math.floor(Math.random() * 10) + 1); // 1-10
-    setCaptchaAnswer('');
-  };
-
-  // Si ya tiene sesión activa, mandarlo a buscar
+  // Si ya tiene sesión activa, redirigir inmediatamente
   useEffect(() => {
-    const sessionStr = localStorage.getItem('win_session');
-    if (sessionStr) {
-      navigate('/buscar');
+    const session = getSession();
+    if (session) {
+      const dest = (session.role === 'ADMINISTRADOR' || session.role === 'SUPERVISOR') 
+        ? '/admin' 
+        : '/buscar';
+      navigate(dest);
     }
   }, [navigate]);
 
   /**
-   * Valida los campos y establece la sesión en localStorage.
+   * Genera dos números aleatorios entre 1 y 10 para el captcha.
+   */
+  const generateCaptcha = () => {
+    setCaptchaNum1(Math.floor(Math.random() * 10) + 1);
+    setCaptchaNum2(Math.floor(Math.random() * 10) + 1);
+    setCaptchaAnswer('');
+  };
+
+  /**
+   * Maneja el envío del formulario de login.
    */
   const handleLogin = (e) => {
     e.preventDefault(); 
+    setErrorMsg('');
     
-    // 1. Verificación del Captcha
+    // 1. Validar Captcha
     if (parseInt(captchaAnswer) !== (captchaNum1 + captchaNum2)) {
-      alert("Error en el desafío de seguridad (Captcha). Inténtalo de nuevo.");
+      setErrorMsg('Error en el desafío de seguridad (Captcha). Inténtalo de nuevo.');
       generateCaptcha();
       return;
     }
 
-    // 2. Verificación de SUPERVISOR / ADMINISTRADOR (Mock)
-    if (email === 'admin' && password === 'admin') {
-      localStorage.setItem('win_session', JSON.stringify({
-        email: 'ADMINISTRADOR GENERAL',
-        role: 'ADMINISTRADOR',
-        cuadrilla: 'GERENCIA'
-      }));
-      navigate('/admin');
-      return;
-    }
+    // 2. Determinar cuadrilla final
+    const finalCuadrilla = cuadrilla === 'Otro' ? cuadrillaCustom : cuadrilla;
     
-    if (email === 'super' && password === 'super') {
-      localStorage.setItem('win_session', JSON.stringify({
-        email: 'SUPERVISOR ZONAL',
-        role: 'SUPERVISOR',
-        cuadrilla: 'LIMA-NTE-01'
-      }));
-      navigate('/admin');
+    // 3. Validar campos mínimos
+    if (!email || !password) {
+      setErrorMsg('Por favor completa tu usuario y contraseña.');
       return;
     }
 
-    // 3. Verificación de TÉCNICO NORMAL
-    if (email && password && cuadrilla) {
-      if (cuadrilla === 'Otro' && !cuadrillaCustom) {
-         alert('Por favor especifica el nombre de tu cuadrilla y distrito');
-         return;
-      }
-      
-      const finalCuadrilla = cuadrilla === 'Otro' ? cuadrillaCustom : cuadrilla;
-      
-      localStorage.setItem('win_session', JSON.stringify({
-        email,
-        role: 'TECNICO',
-        cuadrilla: finalCuadrilla,
-        cuadrillaPersonalizada: cuadrillaCustom
-      }));
+    // 4. Intentar login contra authService
+    const result = login(email, password, finalCuadrilla);
 
-      navigate('/buscar');
-    } else {
-      alert("Por favor completa todos los campos requeridos, incluyendo tu Cuadrilla.");
+    if (!result.success) {
+      setErrorMsg(result.error);
+      generateCaptcha();
+      return;
     }
+
+    // 5. Redireccionar según rol
+    const dest = (result.session.role === 'ADMINISTRADOR' || result.session.role === 'SUPERVISOR') 
+      ? '/admin' 
+      : '/buscar';
+    navigate(dest);
   };
 
   return (
     <div className="login-page-container">
       <div className="login-form-wrapper animate-fade-in">
         
-        {/* Encabezado con Icono y Texto */}
+        {/* ─── Encabezado ─────────────────────────────────────────────── */}
         <div className="login-header">
           <div className="login-logo-container">
              <Wifi size={32} color="white" />
@@ -120,15 +122,24 @@ const Login = () => {
           <p className="login-subtitle">Acceso Técnico y Supervisión</p>
         </div>
 
-        {/* Tarjeta con los campos del formulario */}
+        {/* ─── Formulario ─────────────────────────────────────────────── */}
         <Card>
           <form className="login-form" onSubmit={handleLogin}>
+            
+            {/* Mensaje de error */}
+            {errorMsg && (
+              <div className="login-error-msg animate-fade-in">
+                <AlertCircle size={16} />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
             <Input 
               label="Usuario o Correo (*)" 
               type="text" 
               placeholder="tecnico@win.pe o 'admin'" 
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); setErrorMsg(''); }}
               required
             />
             <Input 
@@ -136,10 +147,11 @@ const Login = () => {
               type="password" 
               placeholder="••••••••" 
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => { setPassword(e.target.value); setErrorMsg(''); }}
               required
             />
             
+            {/* Selector de cuadrilla */}
             <div style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
               <Select 
                 label="Cuadrilla Asignada (*)" 
@@ -161,13 +173,13 @@ const Login = () => {
               </div>
             )}
 
-            {/* SECCIÓN CAPTCHA */}
-            <div style={{ marginTop: '1.5rem', marginBottom: '1rem', background: 'rgba(255,255,255,0.03)', padding: '15px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '10px' }}>
+            {/* ─── Captcha Anti-Bot ─────────────────────────────────── */}
+            <div className="login-captcha-section">
+              <div className="login-captcha-label">
                 <ShieldCheck size={18} color="var(--win-orange)" />
-                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Seguridad Anti-Bot</span>
+                <span>Seguridad Anti-Bot</span>
               </div>
-              <p style={{ margin: '0 0 10px 0', fontSize: '1.1rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              <p className="login-captcha-question">
                 ¿Cuánto es {captchaNum1} + {captchaNum2}?
               </p>
               <Input 

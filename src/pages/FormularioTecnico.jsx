@@ -19,7 +19,7 @@ import './FormularioTecnico.css';
 const FormularioTecnico = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const codigoCliente = location.state?.codigo || 'GENERIC-001';
+  const codigoCliente = location.state?.codigo;
 
   const [equipos, setEquipos] = useState([]);
   const [mediciones, setMediciones] = useState([]);
@@ -35,11 +35,22 @@ const FormularioTecnico = () => {
   const [csvContentGenerated, setCsvContentGenerated] = useState('');
 
   // ==========================================
+  // GUARD: Validar que se ingresó un código de cliente
+  // ==========================================
+  useEffect(() => {
+    if (!codigoCliente) {
+      alert('Debes ingresar un código de cliente desde el Buscador antes de acceder al formulario.');
+      navigate('/buscar');
+    }
+  }, [codigoCliente, navigate]);
+
+  // ==========================================
   // CACHÉ (AUTOGUARDADO LOCAL)
   // ==========================================
   
   // 1. Cargar estado inicial desde el Caché si existe
   useEffect(() => {
+    if (!codigoCliente) return; // Guard ya redirigió
     const sessionStr = localStorage.getItem('win_session');
     if (!sessionStr) {
       navigate('/login');
