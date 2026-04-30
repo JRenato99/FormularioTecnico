@@ -11,7 +11,7 @@ import {
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import TopologiaRed from '../components/features/TopologiaRed';
-import { getSession, getUsers, addUser, toggleBlock, deleteUser } from '../utils/authService';
+import { getSession, getUsers, addUser, toggleBlock, deleteUser, crearNotificacion, addAuditLog } from '../utils/authService';
 import { getRssiStyle } from '../utils/constants';
 import './PanelAdmin.css';
 
@@ -45,6 +45,11 @@ const PanelAdmin = () => {
   const [showAddUser, setShowAddUser]   = useState(false);
   const [newUser, setNewUser]           = useState({ email: '', password: '', role: 'TECNICO', cuadrilla: '' });
   const [userError, setUserError]       = useState('');
+
+  // ─── Modal de motivo de rechazo ───────────────────────────────────────
+  const [showRechazoModal, setShowRechazoModal] = useState(false);
+  const [ordenParaRechazar, setOrdenParaRechazar] = useState(null);
+  const [motivoRechazo, setMotivoRechazo]       = useState('');
 
   // ─── Validar sesión ────────────────────────────────────────────────────
   useEffect(() => {
@@ -85,22 +90,64 @@ const PanelAdmin = () => {
     return map[status] || null;
   };
 
-  // ─── Cambiar estado de una orden ───────────────────────────────────────
-  const cambiarEstado = (codigoCliente, nuevoEstado) => {
+  // ─── Cambiar estado de una orden (Aprobar) ────────────────────────────
+  const aprobarOrden = (codigoCliente) => {
+    const orden = ordenes.find(o => o.codigoCliente === codigoCliente);
     const actualizadas = ordenes.map(o =>
-      o.codigoCliente === codigoCliente ? { ...o, status: nuevoEstado } : o
+      o.codigoCliente === codigoCliente ? { ...o, status: 'APROBADO', fechaGestion: Date.now(), gestionadoPor: session.email } : o
     );
     localStorage.setItem('win_orders', JSON.stringify([...actualizadas].reverse()));
     setOrdenes(actualizadas);
+
+    // Notificar al técnico
+    if (orden?.tecnicoEmail) {
+      crearNotificacion(orden.tecnicoEmail, 'APROBADO', codigoCliente);
+    }
+    addAuditLog('APROBAR', 'ORDEN', codigoCliente, { gestionadoPor: session.email });
+  };
+
+  // ─── Abrir modal de rechazo ───────────────────────────────────────────
+  const abrirModalRechazo = (orden) => {
+    setOrdenParaRechazar(orden);
+    setMotivoRechazo('');
+    setShowRechazoModal(true);
+  };
+
+  // ─── Confirmar rechazo con motivo ─────────────────────────────────────
+  const confirmarRechazo = () => {
+    if (!motivoRechazo.trim()) return alert('Debes ingresar el motivo del rechazo antes de confirmar.');
+    const codigoCliente = ordenParaRechazar.codigoCliente;
+    const actualizadas = ordenes.map(o =>
+      o.codigoCliente === codigoCliente
+        ? { ...o, status: 'RECHAZADO', motivoRechazo: motivoRechazo.trim(), fechaGestion: Date.now(), gestionadoPor: session.email }
+        : o
+    );
+    localStorage.setItem('win_orders', JSON.stringify([...actualizadas].reverse()));
+    setOrdenes(actualizadas);
+
+    // Notificar al técnico con el motivo
+    if (ordenParaRechazar?.tecnicoEmail) {
+      crearNotificacion(ordenParaRechazar.tecnicoEmail, 'RECHAZADO', codigoCliente, motivoRechazo.trim());
+    }
+    addAuditLog('RECHAZAR', 'ORDEN', codigoCliente, { motivo: motivoRechazo.trim(), gestionadoPor: session.email });
+
+    setShowRechazoModal(false);
+    setOrdenParaRechazar(null);
+    setMotivoRechazo('');
   };
 
   // ─── Descarga de CSV y PDF ─────────────────────────────────────────────
   const descargarCSV = (orden) => {
     if (!orden.csvContent) return alert('No hay contenido CSV para esta orden.');
-    const blob = new Blob(["\uFEFF" + orden.csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + orden.csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `WIN_REPORTE_${orden.codigoCliente}_${Date.now()}.csv`;
+    // Nomenclatura con fecha
+    const ahora = new Date(orden.fechaGuardado || Date.now());
+    const dd = String(ahora.getDate()).padStart(2, '0');
+    const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+    const aa = String(ahora.getFullYear()).slice(2);
+    link.download = `${orden.codigoCliente}-${dd}-${mm}-${aa}-mediciones.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -175,6 +222,7 @@ const PanelAdmin = () => {
     : 'Revisión y aprobación de reportes técnicos.';
 
   return (
+    <>
     <div className="panel-admin-container">
       <Header />
       <div className="admin-wrapper animate-fade-in">
@@ -277,10 +325,10 @@ const PanelAdmin = () => {
                         </Button>
                         {orden.status === 'ENVIADO' && (
                           <>
-                            <Button onClick={() => cambiarEstado(orden.codigoCliente, 'APROBADO')} style={{ background: '#00C853', color: '#fff', borderColor: '#00C853', fontSize: '0.8rem' }}>
+                            <Button onClick={() => aprobarOrden(orden.codigoCliente)} style={{ background: '#00C853', color: '#fff', borderColor: '#00C853', fontSize: '0.8rem' }}>
                               <CheckCircle size={14} /> Aprobar
                             </Button>
-                            <Button onClick={() => cambiarEstado(orden.codigoCliente, 'RECHAZADO')} style={{ background: '#FF3D00', color: '#fff', borderColor: '#FF3D00', fontSize: '0.8rem' }}>
+                            <Button onClick={() => abrirModalRechazo(orden)} style={{ background: '#FF3D00', color: '#fff', borderColor: '#FF3D00', fontSize: '0.8rem' }}>
                               <XCircle size={14} /> Rechazar
                             </Button>
                           </>
@@ -294,6 +342,17 @@ const PanelAdmin = () => {
                         </button>
                       </div>
                     </div>
+
+                    {/* Mostrar motivo de rechazo si la orden fue rechazada */}
+                    {orden.status === 'RECHAZADO' && orden.motivoRechazo && (
+                      <div style={{ margin: '0.5rem 0', padding: '10px 14px', background: 'rgba(255,61,0,0.08)', border: '1px solid rgba(255,61,0,0.25)', borderRadius: '8px', fontSize: '0.85rem' }}>
+                        <strong style={{ color: '#FF3D00' }}>⛔ Motivo del Rechazo:</strong>
+                        <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)' }}>{orden.motivoRechazo}</p>
+                        {orden.gestionadoPor && (
+                          <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.6 }}>Por: {orden.gestionadoPor}</p>
+                        )}
+                      </div>
+                    )}
 
                     {/* ─── Panel Expandible: Detalle Completo ─────────── */}
                     {expandedIndex === idx && (
@@ -535,6 +594,42 @@ const PanelAdmin = () => {
 
       </div>
     </div>
+
+    {/* ─── MODAL DE RECHAZO ────────────────────────────────────────────── */}
+    {showRechazoModal && ordenParaRechazar && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+        <Card style={{ width: '100%', maxWidth: '480px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, color: '#FF3D00', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <XCircle size={20} /> Rechazar Orden
+            </h3>
+            <button onClick={() => setShowRechazoModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.2rem' }}>×</button>
+          </div>
+          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+            Estás rechazando la orden <strong style={{ color: 'var(--text-primary)' }}>{ordenParaRechazar.codigoCliente}</strong> del técnico <strong style={{ color: 'var(--win-orange)' }}>{ordenParaRechazar.tecnicoEmail}</strong>.
+          </p>
+          <div>
+            <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-primary)' }}>Motivo del Rechazo (*)</label>
+            <textarea
+              value={motivoRechazo}
+              onChange={e => setMotivoRechazo(e.target.value)}
+              placeholder="Ej: Las mediciones de cobertura son insuficientes (menos de 3). Por favor completa el formulario correctamente..."
+              rows={4}
+              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem', color: 'var(--text-primary)', fontSize: '0.9rem', resize: 'vertical' }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <Button variant="secondary" style={{ flex: 1 }} onClick={() => setShowRechazoModal(false)}>
+              Cancelar
+            </Button>
+            <Button style={{ flex: 1, background: '#FF3D00', color: '#fff', borderColor: '#FF3D00' }} onClick={confirmarRechazo}>
+              <XCircle size={16} /> Confirmar Rechazo
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )}
+    </>
   );
 };
 

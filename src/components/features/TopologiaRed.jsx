@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
-import { Plus, Trash2, Router, Wifi, Hash, Edit2, ShieldAlert } from 'lucide-react';
+import { Plus, Trash2, Router, Wifi, Hash, Edit2, ShieldAlert, Network, AlertTriangle } from 'lucide-react';
 import { LEYENDA, getRssiStyle } from '../../utils/constants';
 import './Topologia.css';
 
@@ -16,6 +16,9 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   // Bandera para diferenciar AP tipo WIN de tipo Tercero (3th)
   const [isAdding3thParty, setIsAdding3thParty] = useState(false);
 
+  /** Lista de marcas para AP de Terceros (mismo catálogo compartido) */
+  const MARCAS_AP = ['Cisco', 'TP-Link', 'D-Link', 'Huawei', 'Ubiquiti', 'Tenda', 'Mercusys', 'Mikrotik', 'Otro'];
+
   // Estructura Vacía de un AP para resetear después de añadir
   const initialApState = {
     serialNumber: '',
@@ -29,6 +32,10 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   };
 
   const [newAp, setNewAp] = useState(initialApState);
+
+  // Estado para la marca del AP de tercero
+  const [marcaTercero, setMarcaTercero] = useState('');
+  const [marcaTerceroCustom, setMarcaTerceroCustom] = useState('');
 
   const [newOnt, setNewOnt] = useState({
     serialNumber: '',
@@ -88,30 +95,70 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
 
   const openAddApPanel = (is3th) => {
     setIsAdding3thParty(is3th);
-    setNewAp(initialApState); // Vaciado estricto para evitar copiar del registro anterior
+    setNewAp(initialApState);
+    setMarcaTercero('');
+    setMarcaTerceroCustom('');
     setEditingNode(null);
     setShowAddModal(true);
   };
 
+  /**
+   * Calcula el nivel de cascada de un equipo dado su ID.
+   * ONT = nivel 0, AP hijo directo = nivel 1, AP nieto = nivel 2 (máximo permitido).
+   * @param {string} equipoId - ID del equipo del que se quiere saber el nivel.
+   * @returns {number}
+   */
+  const getCascadeLevel = (equipoId) => {
+    if (equipoId === 'ONT') return 0;
+    const equipo = equipos.find(e => e.id === equipoId);
+    if (!equipo) return 0;
+    return 1 + getCascadeLevel(equipo.parentId);
+  };
+
   const handleAddAp = () => {
     if (apCount >= 8) return;
+
+    // Validación: no permitir cascada más allá del nivel 2 (ONT → AP → AP max)
+    const nivelPadre = getCascadeLevel(newAp.parentId);
+    if (nivelPadre >= 2) {
+      return alert('⛔ No se permite una conexión en cascada a 3er nivel.\nEl máximo permitido es: ONT → AP → AP (2 niveles).');
+    }
+
+    // Alerta de mala práctica: AP padre con conexión inalámbrica
+    const padreEquipo = equipos.find(e => e.id === newAp.parentId);
+    if (padreEquipo && padreEquipo.tipo === 'AP' && padreEquipo.conexion === 'Inalámbrico') {
+      const confirmar = window.confirm(
+        '⚠️ No Recomendable\n\nEstás conectando un AP a otro que ya usa enlace INALÁMBRICO (MESH).\nEsto puede degradar significativamente la calidad y velocidad de la red.\n\n¿Deseas continuar de todas formas?'
+      );
+      if (!confirmar) return;
+    }
     
-    if (!isAdding3thParty && !newAp.serialNumber) return alert("Debes ingresar el S/N del AP WIN.");
-    if (!newAp.piso) return alert("Debes rellenar el Piso del Access Point.");
-    if (newAp.ambiente === 'Otro' && !newAp.ambientePersonalizado) return alert("Por favor escribe el nombre del ambiente.");
+    if (!isAdding3thParty && !newAp.serialNumber) return alert('Debes ingresar el S/N del AP WIN.');
+    if (!newAp.piso) return alert('Debes rellenar el Piso del Access Point.');
+    if (newAp.ambiente === 'Otro' && !newAp.ambientePersonalizado) return alert('Por favor escribe el nombre del ambiente.');
+
+    // Validar S/N único entre todos los equipos registrados
+    if (!isAdding3thParty) {
+      const snDuplicado = equipos.find(e => e.serialNumber && e.serialNumber.toUpperCase() === newAp.serialNumber.toUpperCase());
+      if (snDuplicado) return alert(`El S/N "${newAp.serialNumber}" ya está registrado en la topología (${snDuplicado.nombre}).`);
+    }
     
     const isWireless = newAp.conexion === 'Inalámbrico';
     
-    // Solo exigir RSSI si NO es un equipo de Terceros (Gestionable)
     if (isWireless && !isAdding3thParty && !newAp.rssiBackhaul) {
-      return alert("Si configuras enlace Inalámbrico MESH, requieres escribir la señal RSSI del Backhaul.");
+      return alert('Si configuras enlace Inalámbrico MESH, requieres escribir la señal RSSI del Backhaul.');
     }
 
     const ambienteF = newAp.ambiente === 'Otro' ? newAp.ambientePersonalizado : newAp.ambiente;
     if (newAp.ambiente === 'Otro') onAgregarUbicacion(newAp.ambientePersonalizado);
 
     const newId = `AP${Date.now()}`;
-    const nameStr = isAdding3thParty ? `AP 3th Party` : `AP WIN`;
+    const marcaFinal = isAdding3thParty
+      ? (marcaTercero === 'Otro' ? marcaTerceroCustom : marcaTercero)
+      : '';
+    const nameStr = isAdding3thParty
+      ? `AP 3th${marcaFinal ? ` (${marcaFinal})` : ''}`
+      : 'AP WIN';
     
     setEquipos([...equipos, {
       id: newId,
@@ -122,8 +169,14 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
       ambienteFinal: ambienteF,
       banda: isWireless ? newAp.banda : null,
       rssiBackhaul: (isWireless && !isAdding3thParty) ? newAp.rssiBackhaul : null,
-      esTercero: isAdding3thParty
+      esTercero: isAdding3thParty,
+      marcaTercero: isAdding3thParty ? marcaFinal : null
     }]);
+
+    if (isAdding3thParty) {
+      // Toast informativo para AP de terceros
+      alert(`ℹ️ AP de Terceros registrado.\nEste equipo es SIN GESTIÓN WIN y solo referencial.\nNo aparecerá en los datos de configuración.`);
+    }
     
     setShowAddModal(false);
   };
@@ -138,9 +191,19 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   };
 
   const handleUpdateNode = () => {
-    if (!editingNode.esTercero && !editingNode.serialNumber) return alert("Debes ingresar el S/N.");
-    if (!editingNode.piso) return alert("Debes rellenar el Piso.");
-    if (editingNode.ambiente === 'Otro' && !editingNode.ambientePersonalizado) return alert("Escribe el nombre del ambiente especial.");
+    if (!editingNode.esTercero && !editingNode.serialNumber) return alert('Debes ingresar el S/N.');
+    if (!editingNode.piso) return alert('Debes rellenar el Piso.');
+    if (editingNode.ambiente === 'Otro' && !editingNode.ambientePersonalizado) return alert('Escribe el nombre del ambiente especial.');
+
+    // Validar que el S/N no esté ya en uso por OTRO equipo
+    if (!editingNode.esTercero && editingNode.serialNumber) {
+      const snDuplicado = equipos.find(
+        e => e.id !== editingNode.id &&
+             e.serialNumber &&
+             e.serialNumber.toUpperCase() === editingNode.serialNumber.toUpperCase()
+      );
+      if (snDuplicado) return alert(`El S/N "${editingNode.serialNumber}" ya está en uso por "${snDuplicado.nombre}".`);
+    }
     
     const isWireless = editingNode.conexion === 'Inalámbrico';
     if (editingNode.tipo === 'AP' && isWireless && !editingNode.esTercero && !editingNode.rssiBackhaul) {
@@ -207,6 +270,9 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
           if (hijo.conexion === 'Inalámbrico') {
             lineClass = hijo.banda === '5G' ? 'line-5g' : 'line-24g';
           }
+
+          // Badge inalámbrico: texto completo
+          const wirelessLabel = hijo.banda === '5G' ? '5G Inalámbrico' : '2.4G Inalámbrico';
           
           return (
             <div key={hijo.id} className="tree-node-container animate-fade-in">
@@ -214,31 +280,43 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                 <div className={`tree-line ${lineClass}`}>
                   {hijo.conexion === 'Inalámbrico' && (
                     <span className={`wireless-badge ${hijo.banda === '5G' ? 'wb-5g' : 'wb-24g'}`}>
-                      {hijo.banda}
+                      {wirelessLabel}
                     </span>
                   )}
                 </div>
                 
                 <div className="node-card" style={{ borderColor: nodeBorderColor, background: nodeBgColor }}>
                   <div className="node-icon ap-icon" style={{ background: iconBgColor }}>
-                    {is3th ? <ShieldAlert size={20} /> : <Wifi size={20} />}
+                    {is3th
+                      ? <ShieldAlert size={20} />
+                      : hijo.conexion === 'Cableado'
+                        ? <Network size={20} />   /* Ícono de cable para AP cableados */
+                        : <Wifi size={20} />       /* Ícono wifi para AP inalámbricos */
+                    }
                   </div>
                   <div className="node-info">
                     <strong>{hijo.nombre}</strong>
-                    
+                    {hijo.marcaTercero && (
+                      <div style={{ fontSize: '0.72rem', color: '#aaa', marginTop: '2px' }}>
+                        Marca: {hijo.marcaTercero}
+                      </div>
+                    )}
                     {!is3th && (
                       <div style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)'}}>
                         <Hash size={12}/> S/N: {hijo.serialNumber}
                       </div>
                     )}
-                    
-                    <span className="node-meta">{hijo.conexion} {hijo.conexion === 'Inalámbrico' ? `(${hijo.banda})` : ''}</span>
+                    <span className="node-meta">
+                      {hijo.conexion === 'Inalámbrico'
+                        ? (hijo.banda === '5G' ? '5G Inalámbrico' : '2.4G Inalámbrico')
+                        : 'Cableado'}
+                    </span>
                     <div className="node-location-badge">
                       P{hijo.piso} - {hijo.ambienteFinal}
                     </div>
                     {hijo.conexion === 'Inalámbrico' && hijo.rssiBackhaul && !is3th && (
-                      <span style={{ fontSize: '0.85rem', color: styleInfo.color, fontWeight: '600' }}>
-                        RSSI: {hijo.rssiBackhaul} dBm
+                      <span style={{ fontSize: '0.85rem', color: styleInfo?.color, fontWeight: '600' }}>
+                        RSSI Backhaul: {hijo.rssiBackhaul} dBm
                       </span>
                     )}
                   </div>
@@ -427,8 +505,18 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
 
       {/* FORMULARIO DE CREACIÓN APs */}
       {showAddModal && ontNode && !isExporting && !editingNode && (
-        <div className="add-ap-form glass-panel animate-fade-in" style={{ borderColor: isAdding3thParty ? '#666' : 'var(--border-color)' }}>
-          <h4>{isAdding3thParty ? 'Configurar AP 3th Party (Sin Gestión)' : 'Configurar Nuevo Access Point WIN'}</h4>
+        <div className="add-ap-form glass-panel animate-fade-in" style={{ borderColor: isAdding3thParty ? '#888' : 'var(--border-color)' }}>
+          <h4>
+            {isAdding3thParty
+              ? '⚠️ Configurar AP de Terceros (Sin Gestión WIN — Solo Referencial)'
+              : 'Configurar Nuevo Access Point WIN'}
+          </h4>
+          {isAdding3thParty && (
+            <div style={{ background: 'rgba(136,136,136,0.1)', border: '1px solid #666', borderRadius: '8px', padding: '10px 14px', marginBottom: '1rem', fontSize: '0.85rem', color: '#aaa' }}>
+              <AlertTriangle size={14} style={{ display: 'inline', marginRight: '6px', color: '#ffa500' }} />
+              Este equipo se registrará como <strong>sin gestión WIN</strong> y es solo referencial. No contará para estadísticas de cobertura.
+            </div>
+          )}
           <div className="form-grid">
             
             {/* Solo pedir SN si no es tercero */}
@@ -439,6 +527,29 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                 value={newAp.serialNumber}
                 onChange={e => setNewAp({...newAp, serialNumber: e.target.value.toUpperCase()})}
               />
+            )}
+
+            {/* Campo de marca solo para AP de terceros */}
+            {isAdding3thParty && (
+              <>
+                <Select
+                  label="Marca del Equipo (*)"
+                  value={marcaTercero}
+                  onChange={e => setMarcaTercero(e.target.value)}
+                  options={[
+                    { label: 'Seleccione una marca...', value: '' },
+                    ...MARCAS_AP.map(m => ({ label: m, value: m }))
+                  ]}
+                />
+                {marcaTercero === 'Otro' && (
+                  <Input
+                    label="Especificar Marca"
+                    placeholder="Ej: Ruijie, ZTE..."
+                    value={marcaTerceroCustom}
+                    onChange={e => setMarcaTerceroCustom(e.target.value)}
+                  />
+                )}
+              </>
             )}
 
              <Input 
@@ -494,7 +605,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                 {/* RSSI solo si no es tercero */}
                 {!isAdding3thParty && (
                   <Input 
-                    label="RSSI (dBm) (*)" 
+                    label="RSSI Backhaul (dBm) (*)" 
                     type="number"
                     placeholder="Ej: 55 se vuelve -55" 
                     value={newAp.rssiBackhaul}
@@ -508,7 +619,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
              <Button style={{ flex: 1, background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} onClick={() => setShowAddModal(false)}>
                Cancelar
              </Button>
-             <Button style={{ flex: 1, background: isAdding3thParty ? '#444' : 'var(--win-blue-light)', color: 'white', borderColor: isAdding3thParty ? '#444' : 'var(--win-blue-light)' }} onClick={handleAddAp}>
+             <Button style={{ flex: 1, background: isAdding3thParty ? '#555' : 'var(--win-blue-light)', color: 'white', borderColor: isAdding3thParty ? '#555' : 'var(--win-blue-light)' }} onClick={handleAddAp}>
                Guardar Equipo
              </Button>
           </div>

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../components/layout/Header';
 import { Card, Input, Button } from '../components/ui';
-import { Search, User, MapPin, List, Clock, CheckCircle, Send, FileText } from 'lucide-react';
+import { Search, User, MapPin, List, Clock, CheckCircle, Send, FileText, XCircle, Bell, Edit2 } from 'lucide-react';
+import { getSession, getNotificaciones, marcarNotificacionesLeidas, contarNotificacionesNoLeidas } from '../utils/authService';
 import './BuscadorCliente.css'; 
 
 /**
@@ -18,22 +19,26 @@ const BuscadorCliente = () => {
   const [historial, setHistorial] = useState([]);
   const [tecnico, setTecnico] = useState(null);
 
+  // Estado de notificaciones
+  const [notifs, setNotifs]             = useState([]);
+  const [notifsBadge, setNotifsBadge]   = useState(0);
+  const [showNotifs, setShowNotifs]     = useState(false);
+
   useEffect(() => {
     // Cargar historial de órdenes desde localStorage (Caché local)
     const stored = localStorage.getItem('win_orders');
     if (stored) {
-      try {
-        setHistorial(JSON.parse(stored));
-      } catch (e) {
-        console.error("Error leyendo historial", e);
-      }
+      try { setHistorial(JSON.parse(stored)); }
+      catch (e) { console.error('Error leyendo historial', e); }
     }
     
-    const session = localStorage.getItem('win_session');
+    const session = getSession();
     if (session) {
-      try {
-        setTecnico(JSON.parse(session));
-      } catch(e){}
+      setTecnico(session);
+      // Leer notificaciones del técnico
+      const todasNotifs = getNotificaciones().filter(n => n.tecnicoEmail === session.email);
+      setNotifs(todasNotifs);
+      setNotifsBadge(contarNotificacionesNoLeidas(session.email));
     }
   }, []);
 
@@ -72,9 +77,34 @@ const BuscadorCliente = () => {
       case 'EN PROCESO': return <Clock size={16} color="#ffa500" />;
       case 'ENVIADO': return <Send size={16} color="#1E90FF" />;
       case 'APROBADO': return <CheckCircle size={16} color="#00C853" />;
-      case 'RECHAZADO': return <CheckCircle size={16} color="#FF3D00" />;
+      case 'RECHAZADO': return <XCircle size={16} color="#FF3D00" />;
       default: return null;
     }
+  };
+
+  /**
+   * Abre el formulario en modo edición para una orden rechazada.
+   * Carga los datos previos de la orden en el formulario via state.
+   */
+  const handleEditarRechazada = (orden) => {
+    navigate('/formulario', { 
+      state: { 
+        codigo: orden.codigoCliente,
+        tipoVivienda: orden.tipoVivienda || 'Casa',
+        modoEdicion: true,
+        ordenPrevia: orden
+      }
+    });
+  };
+
+  /** Muestra/oculta el panel de notificaciones y las marca como leídas */
+  const handleToggleNotifs = () => {
+    if (!showNotifs && tecnico) {
+      marcarNotificacionesLeidas(tecnico.email);
+      setNotifsBadge(0);
+      setNotifs(prev => prev.map(n => ({ ...n, leida: true })));
+    }
+    setShowNotifs(!showNotifs);
   };
 
   return (
@@ -82,11 +112,51 @@ const BuscadorCliente = () => {
       <Header />
       <div className="layout-container animate-fade-in">
         <div className="buscador-wrapper">
-          <h1 className="buscador-title">Buscar Orden de Trabajo</h1>
-          <p className="buscador-subtitle">
-            Ingresa el código de pedido (solo números) para iniciar el registro.
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.5rem' }}>
+            <div>
+              <h1 className="buscador-title">Buscar Orden de Trabajo</h1>
+              <p className="buscador-subtitle">
+                Ingresa el código de pedido (solo números) para iniciar el registro.
+              </p>
+            </div>
+            {/* Botón de Notificaciones */}
+            {tecnico && (
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={handleToggleNotifs}
+                  style={{ position: 'relative', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '0.6rem 1rem', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <Bell size={18} />
+                  {notifsBadge > 0 && (
+                    <span style={{ position: 'absolute', top: '-6px', right: '-6px', background: '#FF3D00', color: 'white', borderRadius: '50%', width: '20px', height: '20px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                      {notifsBadge}
+                    </span>
+                  )}
+                  Notificaciones
+                </button>
 
+                {/* Panel de notificaciones desplegable */}
+                {showNotifs && (
+                  <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', width: '320px', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', zIndex: 1000, overflow: 'hidden' }}>
+                    <div style={{ padding: '0.8rem 1rem', borderBottom: '1px solid var(--border-color)', fontWeight: '600', fontSize: '0.9rem' }}>Notificaciones</div>
+                    {notifs.length === 0 ? (
+                      <p style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center' }}>Sin notificaciones.</p>
+                    ) : (
+                      notifs.slice().reverse().map(n => (
+                        <div key={n.id} style={{ padding: '0.8rem 1rem', borderBottom: '1px solid var(--border-color)', background: n.leida ? 'transparent' : 'rgba(255,107,0,0.06)' }}>
+                          <div style={{ fontSize: '0.85rem', color: n.tipo === 'RECHAZADO' ? '#FF3D00' : '#00C853', fontWeight: '600', marginBottom: '4px' }}>
+                            {n.tipo === 'RECHAZADO' ? '⛔' : '✅'} {n.tipo}: Orden {n.codigoCliente}
+                          </div>
+                          {n.motivo && <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{n.motivo}</p>}
+                          <p style={{ margin: '4px 0 0 0', fontSize: '0.72rem', color: 'var(--text-secondary)', opacity: 0.5 }}>{new Date(n.creadoEn).toLocaleString()}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <Card className="buscador-card">
             <form onSubmit={handleBuscar} className="buscador-form">
               <div className="buscador-input-container">
@@ -208,6 +278,24 @@ const BuscadorCliente = () => {
                        <span>|</span>
                        <span>Winbox: {orden.winboxes ? orden.winboxes.length : 0}</span>
                     </div>
+
+                    {/* Motivo de rechazo visible para el técnico */}
+                    {orden.status === 'RECHAZADO' && orden.motivoRechazo && (
+                      <div style={{ padding: '10px 14px', background: 'rgba(255,61,0,0.08)', border: '1px solid rgba(255,61,0,0.2)', borderRadius: '8px', fontSize: '0.85rem' }}>
+                        <strong style={{ color: '#FF3D00' }}>⛔ Motivo del Rechazo:</strong>
+                        <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)' }}>{orden.motivoRechazo}</p>
+                      </div>
+                    )}
+
+                    {/* Botón de Editar solo para órdenes RECHAZADAS */}
+                    {orden.status === 'RECHAZADO' && (
+                      <Button 
+                        onClick={() => handleEditarRechazada(orden)} 
+                        style={{ alignSelf: 'flex-start', background: 'rgba(255,107,0,0.12)', border: '1px solid var(--win-orange)', color: 'var(--win-orange)', fontSize: '0.85rem' }}
+                      >
+                        <Edit2 size={14} /> Editar y Corregir Formulario
+                      </Button>
+                    )}
 
                   </Card>
                 ))}

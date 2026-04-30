@@ -1,22 +1,42 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
-import { Plus, Trash2, MapPin, Activity, Wifi, Save, Edit2 } from 'lucide-react';
+import { Plus, Trash2, MapPin, Activity, Wifi, Save, Edit2, ChevronDown, ChevronUp, EyeOff } from 'lucide-react';
 import { getRssiStyle } from '../../utils/constants';
 import './FormularioMediciones.css';
 
 /**
- * Módulo Arquitectónico: Formulario de Mediciones Cuantitativas
- * 
- * Interfaz de grilla repetitiva que permite al técnico agregar cuartos y medir
- * las señales duales (2.4/5G). Opera bajo una lógica de "Lectura vs Edición" (isSaved)
- * para congelar inputs y protegerlos de toques falsos. 
- * 
- * @param {Object} props
- * @param {Array} props.equipos - Diccionario inmutable consumido para listar MESH padres.
- * @param {Array} props.mediciones - Array reverso de las mediciones hechas.
- * @param {Function} props.setMediciones - Despachador de mutación global de Dashboard.
+ * Módulo: Mediciones de Cobertura Wi-Fi
+ * Opera bajo la lógica de "Lectura vs Edición" (isSaved).
+ * Cada tarjeta puede colapsarse para ahorrar espacio de navegación.
  */
 const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaciones, onAgregarUbicacion }) => {
+
+  /** Controla qué tarjetas están expandidas. Solo las no guardadas siempre abren. */
+  const [expandedIds, setExpandedIds] = useState(new Set());
+  /** Modo colapso global */
+  const [allCollapsed, setAllCollapsed] = useState(false);
+
+  /** Alterna el estado de expansión de una tarjeta individual */
+  const toggleExpand = (id) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  /** Colapsa o expande todas las tarjetas guardadas */
+  const toggleAll = () => {
+    if (allCollapsed) {
+      // Expandir todas
+      setExpandedIds(new Set(mediciones.filter(m => m.isSaved).map(m => m.id)));
+    } else {
+      // Colapsar todas las guardadas
+      setExpandedIds(new Set());
+    }
+    setAllCollapsed(!allCollapsed);
+  };
 
   /**
    * Crea una nueva carta de medición estéril.
@@ -136,11 +156,26 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
       <div className="form-mediciones-header">
          <div>
           <h2>Mediciones por Ambiente</h2>
-          <p className="form-mediciones-subtitle">Registra las velocidades en cada habitación del domicilio</p>
+          <p className="form-mediciones-subtitle">
+            Registra las velocidades en cada habitación del domicilio
+            {mediciones.length > 0 && (
+              <span style={{ marginLeft: '0.5rem', color: mediciones.length >= 3 ? '#00C853' : '#ffa500', fontWeight: 'bold' }}>
+                ({mediciones.filter(m => m.isSaved).length}/{mediciones.length} guardadas)
+              </span>
+            )}
+          </p>
          </div>
-         <Button onClick={addMedicion} disabled={equipos.length === 0}>
-           <Plus size={18} /> Añadir Medición
-         </Button>
+         <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {mediciones.some(m => m.isSaved) && (
+            <Button variant="secondary" onClick={toggleAll} style={{ fontSize: '0.8rem' }}>
+              {allCollapsed ? <ChevronDown size={16} /> : <EyeOff size={16} />}
+              {allCollapsed ? 'Expandir Todo' : 'Colapsar Todo'}
+            </Button>
+          )}
+          <Button onClick={addMedicion} disabled={equipos.length === 0}>
+            <Plus size={18} /> Añadir Medición
+          </Button>
+         </div>
       </div>
 
       {equipos.length === 0 && (
@@ -161,9 +196,15 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
           return (
             <Card key={m.id} className="medicion-card animate-fade-in" style={{ opacity: readonly ? 0.9 : 1, borderLeft: readonly ? '4px solid var(--win-orange)' : '1px solid var(--border-color)' }}>
               
-              <div className="medicion-del-btn-container" style={{ display: 'flex', gap: '0.5rem' }}>
+              <div className="medicion-del-btn-container" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                {/* Botón colapsar/expandir (solo para tarjetas guardadas) */}
+                {readonly && (
+                  <button className="medicion-del-btn" onClick={() => toggleExpand(m.id)} title={expandedIds.has(m.id) ? 'Colapsar' : 'Expandir'}>
+                    {expandedIds.has(m.id) ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </button>
+                )}
                 {readonly ? (
-                  <button className="medicion-del-btn" style={{ color: 'var(--win-blue-light)' }} onClick={() => updateMedicion(m.id, 'isSaved', false)} title="Editar medición">
+                  <button className="medicion-del-btn" style={{ color: 'var(--win-blue-light)' }} onClick={() => { updateMedicion(m.id, 'isSaved', false); setExpandedIds(p => { const n = new Set(p); n.add(m.id); return n; }); }} title="Editar medición">
                     <Edit2 size={20} />
                   </button>
                 ) : (
@@ -171,7 +212,6 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
                     <Save size={20} />
                   </button>
                 )}
-                
                 <button className="medicion-del-btn" onClick={() => removeMedicion(m.id)} title="Eliminar registro">
                   <Trash2 size={20} />
                 </button>
@@ -180,8 +220,16 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
               <h4 className="medicion-card-title">
                 <span className="medicion-index-badge">{mediciones.length - index}</span>
                 {readonly ? `Ambiente: ${m.ubicacion === 'Otro' ? m.ubicacionPersonalizada : m.ubicacion}` : 'Nuevo Registro'}
+                {readonly && (
+                  <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    2.4G: {m.rssi24g || '--'} | 5G: {m.rssi5g || '--'} dBm
+                  </span>
+                )}
               </h4>
 
+              {/* Contenido colapsable: oculto si está guardado y NO expandido */}
+              {(!readonly || expandedIds.has(m.id)) && (
+              <>
               <div className="medicion-fields-grid">
                 <Select 
                   label="Conectado a:" 
@@ -282,6 +330,8 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
                 </div>
               </div>
 
+              </>
+              )}
             </Card>
           );
         })}

@@ -93,3 +93,53 @@
   font-weight: bold;
   color: var(--text-primary);
 }
+
+/* ─── Campo de error por campo ────────────────────────────────────────── */
+
+.login-field-error {
+  color: #FF6B6B;
+  font-size: 0.8rem;
+  margin: 4px 0 0 0;
+  padding-left: 2px;
+}
+
+/* ─── Wrapper contraseña con toggle ──────────────────────────────────── */
+
+.login-password-wrapper {
+  position: relative;
+}
+
+.login-password-toggle {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.login-password-toggle:hover {
+  color: var(--win-orange);
+}
+
+/* ─── Nota demo ───────────────────────────────────────────────────────── */
+
+.login-demo-note {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin: 0;
+  opacity: 0.7;
+}
+
+.login-demo-note code {
+  background: rgba(255,255,255,0.07);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+}

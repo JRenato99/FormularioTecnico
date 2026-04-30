@@ -202,11 +202,18 @@
   }
   .tree-node-container { align-items: center; }
   .node-wrapper { flex-direction: column; align-items: center; }
-  .tree-line { width: 0; min-height: 2.5rem; margin-bottom: 0.5rem; }
-  
-  .tree-line.line-cable { border-left: 3px solid var(--win-orange); }
-  .tree-line.line-wireless-5g { border-left: 3px dashed #A855F7; }
-  .tree-line.line-wireless-24g { border-left: 3px dotted #2ECA7F; }
+  /* Línea vertical que conecta nodo hijo con su padre */
+  .tree-line {
+    width: 0;
+    min-height: 2.5rem;
+    margin-bottom: 0.5rem;
+    border-right: none;
+    border-bottom: none;
+  }
+  /* Unificados con los nombres que genera el JSX */
+  .tree-line.line-fo  { border-left: 3px solid var(--win-orange); }
+  .tree-line.line-5g  { border-left: 3px dashed #A855F7; }
+  .tree-line.line-24g { border-left: 3px dotted #2ECA7F; }
 }
 
 /* MOBILE: Arbol Vertical (Timeline / Hilo) */

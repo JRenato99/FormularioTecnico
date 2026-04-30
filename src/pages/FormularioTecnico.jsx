@@ -261,8 +261,10 @@ const FormularioTecnico = () => {
       const rowsWintv = televisores.map(t => {
         const ambienteV = t.ubicacion === 'Otro' ? t.ubicacionPersonalizada : t.ubicacion;
         const marcaV = t.marca === 'Otro' ? t.marcaPersonalizada : t.marca;
+        // Modelo opcional: si es null o vacío, se exporta como 'null' en CSV
+        const modeloV = t.modelo ? t.modelo : 'null';
         return [
-          ambienteV, t.piso || 'N/A', marcaV, t.modelo, t.modoConexion
+          ambienteV, t.piso || 'N/A', marcaV, modeloV, t.modoConexion
         ].map(field => `"${field}"`).join(',');
       });
       csvMatrix += headersWintv.map(h => `"${h}"`).join(',') + "\n" + rowsWintv.join('\n');
@@ -272,12 +274,19 @@ const FormularioTecnico = () => {
   };
 
   const handlePreFinalizar = () => {
-    // Auditoría Previa
-    if (equipos.length === 0) return alert("Debe configurar al menos la ONT base.");
+    // Auditoría Previa al envío
+    if (equipos.length === 0) return alert('Debe configurar al menos la ONT base.');
+
+    // Regla: mínimo 3 mediciones guardadas
+    const medicionesGuardadas = mediciones.filter(m => m.isSaved);
+    if (medicionesGuardadas.length < 3) {
+      return alert(`Debes registrar y guardar un mínimo de 3 mediciones de cobertura.\nActualmente tienes: ${medicionesGuardadas.length} guardada(s).`);
+    }
+
     for (let i = 0; i < mediciones.length; i++) {
         const m = mediciones[i];
         if (!m.piso || (m.ubicacion === 'Otro' && !m.ubicacionPersonalizada)) return alert(`Medición #${i + 1} tiene campos de ubicación en blanco.`);
-        if (!m.isSaved) return alert(`Medición #${i + 1} no está guardada.`);
+        if (!m.isSaved) return alert(`Medición #${i + 1} no está guardada. Guárdala (💾) antes de continuar.`);
     }
     for (let j = 0; j < winboxes.length; j++) {
         if (!winboxes[j].isSaved) return alert(`Winbox #${j + 1} no está guardado.`);
@@ -329,11 +338,16 @@ const FormularioTecnico = () => {
   };
 
   const doDescargarCSV = () => {
-    // Reparado con Blob y compatibilidad Excel BOM para evitar caracteres raros
-    const blob = new Blob(["\uFEFF" + csvContentGenerated], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
+    const ahora = new Date();
+    const dd = String(ahora.getDate()).padStart(2, '0');
+    const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+    const aa = String(ahora.getFullYear()).slice(2);
+    const nombreArchivo = `${codigoCliente}-${dd}-${mm}-${aa}-mediciones.csv`;
+
+    const blob = new Blob(['\uFEFF' + csvContentGenerated], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `Reporte_Mediciones_WIN_${codigoCliente}.csv`;
+    link.download = nombreArchivo;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -357,11 +371,17 @@ const FormularioTecnico = () => {
               if(mediciones.length > 0) {
                  const csv = generateCSVContent();
                  setCsvContentGenerated(csv);
-                 
-                 const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-                 const link = document.createElement("a");
+
+                 const ahora = new Date();
+                 const dd = String(ahora.getDate()).padStart(2, '0');
+                 const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+                 const aa = String(ahora.getFullYear()).slice(2);
+                 const nombreArchivo = `${codigoCliente}-${dd}-${mm}-${aa}-mediciones.csv`;
+
+                 const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                 const link = document.createElement('a');
                  link.href = URL.createObjectURL(blob);
-                 link.download = `Reporte_Mediciones_WIN_${codigoCliente}.csv`;
+                 link.download = nombreArchivo;
                  document.body.appendChild(link);
                  link.click();
                  document.body.removeChild(link);
@@ -374,6 +394,7 @@ const FormularioTecnico = () => {
 
         <div className="dashboard-content-grid">
           
+          {/* 1° Topología de Red */}
           <div ref={topologiaRef} style={{ background: 'var(--win-bg-dark)', padding: '1rem', borderRadius: '12px' }}>
             <TopologiaRed 
                equipos={equipos} 
@@ -385,14 +406,7 @@ const FormularioTecnico = () => {
           </div>
           
           <div>
-            <FormularioWinbox 
-               equipos={equipos} 
-               winboxes={winboxes} 
-               setWinboxes={setWinboxes} 
-               listaUbicaciones={listaUbicaciones}
-               onAgregarUbicacion={handleAgregarUbicacionCustom}
-            />
-
+            {/* 2° Mediciones */}
             <FormularioMediciones 
                equipos={equipos} 
                mediciones={mediciones} 
@@ -400,7 +414,17 @@ const FormularioTecnico = () => {
                listaUbicaciones={listaUbicaciones}
                onAgregarUbicacion={handleAgregarUbicacionCustom}
             />
+
+            {/* 3° Despliegue Winbox */}
+            <FormularioWinbox 
+               equipos={equipos} 
+               winboxes={winboxes} 
+               setWinboxes={setWinboxes} 
+               listaUbicaciones={listaUbicaciones}
+               onAgregarUbicacion={handleAgregarUbicacionCustom}
+            />
             
+            {/* 4° Configuración WINtv */}
             <FormularioWintv 
                televisores={televisores}
                setTelevisores={setTelevisores}
@@ -411,6 +435,11 @@ const FormularioTecnico = () => {
 
         </div>
         
+        {/* Nota de obligatoriedad */}
+        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '1rem', opacity: 0.7 }}>
+          Los campos marcados con <strong style={{ color: 'var(--win-orange)' }}>(*)</strong> son obligatorios.
+        </p>
+
         <div style={{ marginTop: '2rem', textAlign: 'center', marginBottom: '3rem' }}>
            <Button variant="primary" style={{ padding: '1rem 3rem', fontSize: '1.1rem' }} onClick={handlePreFinalizar}>
              <Save size={20} style={{ marginRight: '0.5rem' }}/> Finalizar y Enviar Trabajo

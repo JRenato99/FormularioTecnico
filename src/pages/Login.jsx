@@ -1,36 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Input, Button, Select } from '../components/ui';
-import { Wifi, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
-import { initDefaultUsers, login, getSession } from '../utils/authService';
+import { Wifi, ArrowRight, ShieldCheck, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { initDefaultUsers, login, getSession, isValidEmail } from '../utils/authService';
 import './Login.css';
 
 /**
  * Componente Login
  * ----------------
  * Pantalla de acceso principal. Características:
+ * - Solo acepta correos con formato válido (usuario@dominio.ext).
  * - Captcha matemático anti-bot.
- * - Validación de credenciales contra el servicio local (authService).
- * - Auto-registro de técnicos nuevos (se crean en la base local al primer login).
- * - Redirección según rol:
- *     ADMINISTRADOR / SUPERVISOR → /admin
- *     TECNICO                    → /buscar
- * - Mensajes descriptivos si la cuenta está bloqueada.
+ * - Validación de credenciales contra authService.
+ * - Auto-registro de técnicos nuevos (primer acceso con email + pass + cuadrilla).
+ * - Redirección por rol: ADMINISTRADOR/SUPERVISOR → /admin | TECNICO → /buscar.
+ * - Mensajes de error descriptivos por campo.
  */
 const Login = () => {
   const navigate = useNavigate();
-  
+
   // ─── Estados del formulario ────────────────────────────────────────────
-  const [email, setEmail]                 = useState('');
-  const [password, setPassword]           = useState('');
-  const [cuadrilla, setCuadrilla]         = useState('');
+  const [email, setEmail]                     = useState('');
+  const [password, setPassword]               = useState('');
+  const [showPassword, setShowPassword]       = useState(false);
+  const [cuadrilla, setCuadrilla]             = useState('');
   const [cuadrillaCustom, setCuadrillaCustom] = useState('');
-  const [errorMsg, setErrorMsg]           = useState('');
-  
+  const [errorMsg, setErrorMsg]               = useState('');
+  const [emailError, setEmailError]           = useState('');
+
   // ─── Estados del Captcha ───────────────────────────────────────────────
-  const [captchaNum1, setCaptchaNum1]     = useState(0);
-  const [captchaNum2, setCaptchaNum2]     = useState(0);
-  const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [captchaNum1, setCaptchaNum1]         = useState(0);
+  const [captchaNum2, setCaptchaNum2]         = useState(0);
+  const [captchaAnswer, setCaptchaAnswer]     = useState('');
 
   // ─── Catálogo de cuadrillas ────────────────────────────────────────────
   const opcionesCuadrilla = [
@@ -45,24 +46,20 @@ const Login = () => {
 
   // ─── Inicialización ───────────────────────────────────────────────────
   useEffect(() => {
-    // Crear usuarios semilla si es la primera ejecución
     initDefaultUsers();
     generateCaptcha();
   }, []);
 
-  // Si ya tiene sesión activa, redirigir inmediatamente
+  // Redirigir si ya tiene sesión activa
   useEffect(() => {
     const session = getSession();
     if (session) {
-      const dest = (session.role === 'ADMINISTRADOR' || session.role === 'SUPERVISOR') 
-        ? '/admin' 
-        : '/buscar';
-      navigate(dest);
+      navigate(session.role === 'TECNICO' ? '/buscar' : '/admin');
     }
   }, [navigate]);
 
   /**
-   * Genera dos números aleatorios entre 1 y 10 para el captcha.
+   * Genera dos números aleatorios para el captcha de suma.
    */
   const generateCaptcha = () => {
     setCaptchaNum1(Math.floor(Math.random() * 10) + 1);
@@ -71,52 +68,65 @@ const Login = () => {
   };
 
   /**
+   * Valida formato de email al perder el foco del campo.
+   */
+  const handleEmailBlur = () => {
+    if (email && !isValidEmail(email)) {
+      setEmailError('Ingresa un correo válido (ej. tecnico@win.pe)');
+    } else {
+      setEmailError('');
+    }
+  };
+
+  /**
    * Maneja el envío del formulario de login.
    */
   const handleLogin = (e) => {
-    e.preventDefault(); 
+    e.preventDefault();
     setErrorMsg('');
-    
-    // 1. Validar Captcha
+
+    // 1. Validar formato de email
+    if (!isValidEmail(email)) {
+      setEmailError('Ingresa un correo electrónico válido (ej. tecnico@win.pe).');
+      return;
+    }
+
+    // 2. Validar captcha
     if (parseInt(captchaAnswer) !== (captchaNum1 + captchaNum2)) {
-      setErrorMsg('Error en el desafío de seguridad (Captcha). Inténtalo de nuevo.');
+      setErrorMsg('Error en el desafío de seguridad. Inténtalo de nuevo.');
       generateCaptcha();
       return;
     }
 
-    // 2. Determinar cuadrilla final
+    // 3. Determinar cuadrilla final
     const finalCuadrilla = cuadrilla === 'Otro' ? cuadrillaCustom : cuadrilla;
-    
-    // 3. Validar campos mínimos
+
+    // 4. Validar campos mínimos
     if (!email || !password) {
-      setErrorMsg('Por favor completa tu usuario y contraseña.');
+      setErrorMsg('Completa tu correo y contraseña.');
       return;
     }
 
-    // 4. Intentar login contra authService
+    // 5. Intentar login contra authService
     const result = login(email, password, finalCuadrilla);
-
     if (!result.success) {
       setErrorMsg(result.error);
       generateCaptcha();
       return;
     }
 
-    // 5. Redireccionar según rol
-    const dest = (result.session.role === 'ADMINISTRADOR' || result.session.role === 'SUPERVISOR') 
-      ? '/admin' 
-      : '/buscar';
-    navigate(dest);
+    // 6. Redirigir según rol
+    navigate(result.session.role === 'TECNICO' ? '/buscar' : '/admin');
   };
 
   return (
     <div className="login-page-container">
       <div className="login-form-wrapper animate-fade-in">
-        
+
         {/* ─── Encabezado ─────────────────────────────────────────────── */}
         <div className="login-header">
           <div className="login-logo-container">
-             <Wifi size={32} color="white" />
+            <Wifi size={32} color="white" />
           </div>
           <h1 className="login-title">Portal WIN</h1>
           <p className="login-subtitle">Acceso Técnico y Supervisión</p>
@@ -125,8 +135,8 @@ const Login = () => {
         {/* ─── Formulario ─────────────────────────────────────────────── */}
         <Card>
           <form className="login-form" onSubmit={handleLogin}>
-            
-            {/* Mensaje de error */}
+
+            {/* Mensaje de error global */}
             {errorMsg && (
               <div className="login-error-msg animate-fade-in">
                 <AlertCircle size={16} />
@@ -134,55 +144,70 @@ const Login = () => {
               </div>
             )}
 
-            <Input 
-              label="Usuario o Correo (*)" 
-              type="text" 
-              placeholder="tecnico@win.pe o 'admin'" 
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setErrorMsg(''); }}
-              required
-            />
-            <Input 
-              label="Contraseña (*)" 
-              type="password" 
-              placeholder="••••••••" 
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setErrorMsg(''); }}
-              required
-            />
-            
-            {/* Selector de cuadrilla */}
-            <div style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
-              <Select 
-                label="Cuadrilla Asignada (*)" 
-                value={cuadrilla}
-                onChange={e => setCuadrilla(e.target.value)}
-                options={opcionesCuadrilla}
+            {/* Campo email */}
+            <div>
+              <Input
+                label="Correo Electrónico (*)"
+                type="email"
+                placeholder="tecnico@win.pe"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setErrorMsg(''); setEmailError(''); }}
+                onBlur={handleEmailBlur}
+                required
               />
+              {emailError && (
+                <p className="login-field-error">{emailError}</p>
+              )}
             </div>
 
+            {/* Campo contraseña con toggle visibilidad */}
+            <div className="login-password-wrapper">
+              <Input
+                label="Contraseña (*)"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Min. 8 chars, mayúscula, número y símbolo"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setErrorMsg(''); }}
+                required
+              />
+              <button
+                type="button"
+                className="login-password-toggle"
+                onClick={() => setShowPassword(!showPassword)}
+                title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+
+            {/* Selector de cuadrilla */}
+            <Select
+              label="Cuadrilla Asignada (*)"
+              value={cuadrilla}
+              onChange={e => setCuadrilla(e.target.value)}
+              options={opcionesCuadrilla}
+            />
+
             {cuadrilla === 'Otro' && (
-              <div style={{ marginBottom: '1rem' }}>
-                <Input 
-                  label="Especificar Cuadrilla/Distrito" 
-                  placeholder="Ej: AQP-SUR-01 (Bustamante)"
-                  value={cuadrillaCustom}
-                  onChange={e => setCuadrillaCustom(e.target.value)}
-                  required
-                />
-              </div>
+              <Input
+                label="Especificar Cuadrilla/Distrito"
+                placeholder="Ej: AQP-SUR-01"
+                value={cuadrillaCustom}
+                onChange={e => setCuadrillaCustom(e.target.value)}
+                required
+              />
             )}
 
             {/* ─── Captcha Anti-Bot ─────────────────────────────────── */}
             <div className="login-captcha-section">
               <div className="login-captcha-label">
                 <ShieldCheck size={18} color="var(--win-orange)" />
-                <span>Seguridad Anti-Bot</span>
+                <span>Verificación de Seguridad</span>
               </div>
               <p className="login-captcha-question">
                 ¿Cuánto es {captchaNum1} + {captchaNum2}?
               </p>
-              <Input 
+              <Input
                 type="number"
                 placeholder="Tu respuesta..."
                 value={captchaAnswer}
@@ -190,13 +215,19 @@ const Login = () => {
                 required
               />
             </div>
-            
-            <Button type="submit" className="login-submit-btn" style={{ marginTop: '0.5rem' }}>
+
+            <Button type="submit" className="login-submit-btn">
               Ingresar <ArrowRight size={18} />
             </Button>
+
+            {/* Nota de credenciales de demo */}
+            <p className="login-demo-note">
+              Demo: <code>admin@win.pe</code> / <code>Admin@2025</code>
+            </p>
+
           </form>
         </Card>
-        
+
       </div>
     </div>
   );
