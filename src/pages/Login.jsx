@@ -77,11 +77,12 @@ const Login = () => {
       setEmailError('');
     }
   };
+  const [isLoading, setIsLoading] = useState(false);
 
   /**
    * Maneja el envío del formulario de login.
    */
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -98,17 +99,17 @@ const Login = () => {
       return;
     }
 
-    // 3. Determinar cuadrilla final
-    const finalCuadrilla = cuadrilla === 'Otro' ? cuadrillaCustom : cuadrilla;
-
-    // 4. Validar campos mínimos
+    // 3. Validar campos mínimos
     if (!email || !password) {
       setErrorMsg('Completa tu correo y contraseña.');
       return;
     }
 
-    // 5. Intentar login contra authService
-    const result = login(email, password, finalCuadrilla);
+    // 4. Intentar login contra authService
+    setIsLoading(true);
+    const result = await login(email, password);
+    setIsLoading(false);
+    
     if (!result.success) {
       setErrorMsg(result.error);
       generateCaptcha();
@@ -198,6 +199,7 @@ const Login = () => {
               />
             )}
 
+
             {/* ─── Captcha Anti-Bot ─────────────────────────────────── */}
             <div className="login-captcha-section">
               <div className="login-captcha-label">
@@ -216,13 +218,13 @@ const Login = () => {
               />
             </div>
 
-            <Button type="submit" className="login-submit-btn">
-              Ingresar <ArrowRight size={18} />
+            <Button type="submit" className="login-submit-btn" disabled={isLoading}>
+              {isLoading ? 'Iniciando Sesión...' : 'Ingresar'} <ArrowRight size={18} />
             </Button>
 
             {/* Nota de credenciales de demo */}
             <p className="login-demo-note">
-              Demo: <code>admin@win.pe</code> / <code>Admin@2025</code>
+              Acceso Admin: <code>admin@win.pe</code> / <code>Admin123%</code>
             </p>
 
           </form>

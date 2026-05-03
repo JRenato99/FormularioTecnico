@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
-import { Plus, Trash2, Tv, Save, Edit2, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Tv, Save, Edit2, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { getRssiStyle } from '../../utils/constants';
 
 /**
@@ -9,6 +9,8 @@ import { getRssiStyle } from '../../utils/constants';
  * por orden, atándolos a un equipo Padre localizando si usa Wi-Fi o Cable.
  */
 const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, onAgregarUbicacion }) => {
+  const [allCollapsed, setAllCollapsed] = useState(false);
+  const toggleAll = () => setAllCollapsed(!allCollapsed);
 
   const addWinbox = () => {
     if (winboxes.length >= 4) return alert("Has alcanzado el límite máximo de 4 WINBOX.");
@@ -92,9 +94,17 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
           </h2>
           <p className="form-mediciones-subtitle">Registra hasta 4 decodificadores anexados al servicio.</p>
          </div>
-         <Button onClick={addWinbox} disabled={equipos.length === 0 || winboxes.length >= 4}>
-           <Plus size={18} /> Añadir Winbox ({winboxes.length}/4)
-         </Button>
+         <div style={{ display: 'flex', gap: '0.5rem' }}>
+           {winboxes.some(w => w.isSaved) && (
+             <Button variant="secondary" onClick={toggleAll} style={{ fontSize: '0.8rem' }}>
+               {allCollapsed ? <Eye size={16} /> : <EyeOff size={16} />}
+               {allCollapsed ? 'Expandir Todo' : 'Colapsar Todo'}
+             </Button>
+           )}
+           <Button onClick={addWinbox} disabled={equipos.length === 0 || winboxes.length >= 4}>
+             <Plus size={18} /> Añadir Winbox ({winboxes.length}/4)
+           </Button>
+         </div>
       </div>
 
       <div className="mediciones-list">
@@ -124,6 +134,8 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
                 {readonly ? `S/N: ${w.serialNumber} (${w.ubicacion === 'Otro' ? w.ubicacionPersonalizada : w.ubicacion})` : 'Nuevo WINBOX'}
               </h4>
 
+              {(!readonly || !allCollapsed) && (
+              <>
               <div className="medicion-fields-grid">
                 <Input 
                   label="Serial Number (S/N) (*)" 
@@ -218,7 +230,7 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
                       <Input 
                         label={`RSSI ${w.bandaWifi} (dBm) (*)`} 
                         type="number"
-                        placeholder="Ej: 50 se vuelve -50" 
+                        placeholder="Ej: -55" 
                         value={w.rssi}
                         onChange={e => handleRssiChange(w.id, e.target.value)}
                         disabled={readonly}
@@ -227,6 +239,8 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
                     </div>
                   </div>
                 </div>
+              )}
+              </>
               )}
 
             </Card>

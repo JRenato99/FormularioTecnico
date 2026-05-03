@@ -11,30 +11,11 @@ import './FormularioMediciones.css';
  */
 const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaciones, onAgregarUbicacion }) => {
 
-  /** Controla qué tarjetas están expandidas. Solo las no guardadas siempre abren. */
-  const [expandedIds, setExpandedIds] = useState(new Set());
   /** Modo colapso global */
   const [allCollapsed, setAllCollapsed] = useState(false);
 
-  /** Alterna el estado de expansión de una tarjeta individual */
-  const toggleExpand = (id) => {
-    setExpandedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   /** Colapsa o expande todas las tarjetas guardadas */
   const toggleAll = () => {
-    if (allCollapsed) {
-      // Expandir todas
-      setExpandedIds(new Set(mediciones.filter(m => m.isSaved).map(m => m.id)));
-    } else {
-      // Colapsar todas las guardadas
-      setExpandedIds(new Set());
-    }
     setAllCollapsed(!allCollapsed);
   };
 
@@ -197,14 +178,9 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
             <Card key={m.id} className="medicion-card animate-fade-in" style={{ opacity: readonly ? 0.9 : 1, borderLeft: readonly ? '4px solid var(--win-orange)' : '1px solid var(--border-color)' }}>
               
               <div className="medicion-del-btn-container" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                {/* Botón colapsar/expandir (solo para tarjetas guardadas) */}
-                {readonly && (
-                  <button className="medicion-del-btn" onClick={() => toggleExpand(m.id)} title={expandedIds.has(m.id) ? 'Colapsar' : 'Expandir'}>
-                    {expandedIds.has(m.id) ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                  </button>
-                )}
+                {/* Botón colapsar/expandir individual eliminado */}
                 {readonly ? (
-                  <button className="medicion-del-btn" style={{ color: 'var(--win-blue-light)' }} onClick={() => { updateMedicion(m.id, 'isSaved', false); setExpandedIds(p => { const n = new Set(p); n.add(m.id); return n; }); }} title="Editar medición">
+                  <button className="medicion-del-btn" style={{ color: 'var(--text-secondary)' }} onClick={() => updateMedicion(m.id, 'isSaved', false)} title="Editar medición">
                     <Edit2 size={20} />
                   </button>
                 ) : (
@@ -220,15 +196,10 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
               <h4 className="medicion-card-title">
                 <span className="medicion-index-badge">{mediciones.length - index}</span>
                 {readonly ? `Ambiente: ${m.ubicacion === 'Otro' ? m.ubicacionPersonalizada : m.ubicacion}` : 'Nuevo Registro'}
-                {readonly && (
-                  <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    2.4G: {m.rssi24g || '--'} | 5G: {m.rssi5g || '--'} dBm
-                  </span>
-                )}
               </h4>
 
-              {/* Contenido colapsable: oculto si está guardado y NO expandido */}
-              {(!readonly || expandedIds.has(m.id)) && (
+              {/* Contenido colapsable: oculto si está guardado y el switch global está activo */}
+              {(!readonly || !allCollapsed) && (
               <>
               <div className="medicion-fields-grid">
                 <Select 
@@ -292,7 +263,7 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
                       <Input 
                         label="RSSI (dBm)" 
                         type="number"
-                        placeholder="Se restará: Ej: 50 a -50" 
+                        placeholder="Ej: -55" 
                         value={m.rssi24g}
                         onChange={e => handleRssiChange(m.id, 'rssi24g', e.target.value)}
                         disabled={readonly}
@@ -319,7 +290,7 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
                       <Input 
                         label="RSSI (dBm)" 
                         type="number"
-                        placeholder="Ej: 60" 
+                        placeholder="Ej: -55" 
                         value={m.rssi5g}
                         onChange={e => handleRssiChange(m.id, 'rssi5g', e.target.value)}
                         disabled={readonly}

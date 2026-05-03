@@ -340,6 +340,15 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
       </div>
     );
   };
+  const RssiBadge = ({ rssiValue }) => {
+    const styleInfo = getRssiStyle(rssiValue);
+    if (!styleInfo) return null;
+    return (
+      <div className="rssi-evaluation-badge" style={{ borderColor: styleInfo.color, color: styleInfo.color, background: styleInfo.bg, marginTop: '0.5rem', padding: '4px 8px', borderRadius: '4px', border: '1px solid', fontSize: '0.8rem', fontWeight: 600 }}>
+        Evaluación: {styleInfo.lbl}
+      </div>
+    );
+  };
 
   return (
     <Card className="topologia-card">
@@ -439,13 +448,16 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                     />
                     
                     {!editingNode.esTercero && (
-                      <Input 
-                        label="RSSI (dBm) (*)" 
-                        type="number"
-                        placeholder="Ej: 55 se vuelve -55" 
-                        value={editingNode.rssiBackhaul}
-                        onChange={e => handleRssiChange(e.target.value, true)}
-                      />
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <Input 
+                          label="RSSI (dBm) (*)" 
+                          type="number"
+                          placeholder="Ej: -55" 
+                          value={editingNode.rssiBackhaul}
+                          onChange={e => handleRssiChange(e.target.value, true)}
+                        />
+                        {editingNode.rssiBackhaul && <RssiBadge rssiValue={editingNode.rssiBackhaul} />}
+                      </div>
                     )}
                    </>
                 )}
@@ -604,13 +616,16 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                 
                 {/* RSSI solo si no es tercero */}
                 {!isAdding3thParty && (
-                  <Input 
-                    label="RSSI Backhaul (dBm) (*)" 
-                    type="number"
-                    placeholder="Ej: 55 se vuelve -55" 
-                    value={newAp.rssiBackhaul}
-                    onChange={e => handleRssiChange(e.target.value, false)}
-                  />
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <Input 
+                      label="RSSI Backhaul (dBm) (*)" 
+                      type="number"
+                      placeholder="Ej: -55" 
+                      value={newAp.rssiBackhaul}
+                      onChange={e => handleRssiChange(e.target.value, false)}
+                    />
+                    {newAp.rssiBackhaul && <RssiBadge rssiValue={newAp.rssiBackhaul} />}
+                  </div>
                 )}
                </>
             )}

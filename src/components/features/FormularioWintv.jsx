@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
-import { Plus, Trash2, MonitorPlay, Save, Edit2, ChevronDown, ChevronUp, EyeOff, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, MonitorPlay, Save, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 
 /**
  * Módulo: Registro de Smart TVs (Servicio WinTV)
@@ -10,20 +10,9 @@ import { Plus, Trash2, MonitorPlay, Save, Edit2, ChevronDown, ChevronUp, EyeOff,
  */
 const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgregarUbicacion }) => {
 
-  const [expandedIds, setExpandedIds] = useState(new Set());
   const [allCollapsed, setAllCollapsed] = useState(false);
 
-  const toggleExpand = (id) => {
-    setExpandedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
   const toggleAll = () => {
-    if (allCollapsed) setExpandedIds(new Set(televisores.filter(t => t.isSaved).map(t => t.id)));
-    else setExpandedIds(new Set());
     setAllCollapsed(!allCollapsed);
   };
 
@@ -60,7 +49,7 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
   const handleSaveTelevisor = (t) => {
     if (t.ubicacion === 'Otro' && !t.ubicacionPersonalizada) return alert('Falta ingresar el nombre manual del ambiente.');
     if (t.marca === 'Otro' && !t.marcaPersonalizada) return alert('Debes detallar la marca de esta TV.');
-    // Modelo es OPCIONAL: si está vacío se guarda como null.
+    // Modelo es OPCIONAL, pero sin el label "(opcional)". Si está vacío se guarda como null.
     const modeloFinal = t.modelo?.trim() || null;
     if (t.ubicacion === 'Otro') onAgregarUbicacion(t.ubicacionPersonalizada);
     updateTelevisor(t.id, 'modelo', modeloFinal);
@@ -71,7 +60,7 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
     <div style={{ marginTop: '2.5rem', marginBottom: '1rem' }}>
       <div className="form-mediciones-header">
          <div>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--win-blue-light, #00A3FF)' }}>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--win-orange)' }}>
             <MonitorPlay size={24} /> Configuración WINTV
           </h2>
           <p className="form-mediciones-subtitle">Registra las pantallas Smart TV que usarán la aplicación corporativa de WinTV.</p>
@@ -79,11 +68,11 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
          <div style={{ display: 'flex', gap: '0.5rem' }}>
            {televisores.some(t => t.isSaved) && (
              <Button variant="secondary" onClick={toggleAll} style={{ fontSize: '0.8rem' }}>
-               {allCollapsed ? <ChevronDown size={16} /> : <EyeOff size={16} />}
+               {allCollapsed ? <Eye size={16} /> : <EyeOff size={16} />}
                {allCollapsed ? 'Expandir Todo' : 'Colapsar Todo'}
              </Button>
            )}
-           <Button onClick={addTelevisor} style={{ background: 'var(--win-blue-light, #00A3FF)' }}>
+           <Button onClick={addTelevisor}>
              <Plus size={18} /> Añadir Televisor WINTV
            </Button>
          </div>
@@ -98,23 +87,17 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
 
         {televisores.map((t, index) => {
           const readonly = t.isSaved;
-          const isExpanded = !readonly || expandedIds.has(t.id);
 
           return (
-            <Card key={t.id} className="medicion-card animate-fade-in" style={{ opacity: readonly ? 0.9 : 1, borderLeft: readonly ? '4px solid var(--win-blue-light, #00A3FF)' : '1px solid var(--border-color)' }}>
+            <Card key={t.id} className="medicion-card animate-fade-in" style={{ opacity: readonly ? 0.9 : 1, borderLeft: readonly ? '4px solid var(--win-orange)' : '1px solid var(--border-color)' }}>
               
               <div className="medicion-del-btn-container" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                {readonly && (
-                  <button className="medicion-del-btn" onClick={() => toggleExpand(t.id)} title={expandedIds.has(t.id) ? 'Colapsar' : 'Expandir'}>
-                    {expandedIds.has(t.id) ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                  </button>
-                )}
                 {readonly ? (
-                  <button className="medicion-del-btn" style={{ color: 'var(--text-secondary)' }} onClick={() => { updateTelevisor(t.id, 'isSaved', false); setExpandedIds(p => { const n = new Set(p); n.add(t.id); return n; }); }} title="Editar Pantalla">
+                  <button className="medicion-del-btn" style={{ color: 'var(--text-secondary)' }} onClick={() => updateTelevisor(t.id, 'isSaved', false)} title="Editar Pantalla">
                     <Edit2 size={20} />
                   </button>
                 ) : (
-                  <button className="medicion-del-btn" style={{ color: 'var(--win-blue-light, #00A3FF)' }} onClick={() => handleSaveTelevisor(t)} title="Guardar Registro WINTV">
+                  <button className="medicion-del-btn" style={{ color: 'var(--win-orange)' }} onClick={() => handleSaveTelevisor(t)} title="Guardar Registro WINTV">
                     <Save size={20} />
                   </button>
                 )}
@@ -128,7 +111,7 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
                 {readonly ? `Pantalla: ${t.marca === 'Otro' ? t.marcaPersonalizada : t.marca} (${t.ubicacion === 'Otro' ? t.ubicacionPersonalizada : t.ubicacion})` : 'Nueva Televisión WINTV'}
               </h4>
 
-              {isExpanded && (
+              {(!readonly || !allCollapsed) && (
               <div className="medicion-fields-grid">
                 
                 <Select 
@@ -168,8 +151,8 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
                 )}
 
                 <Input 
-                  label="Modelo Específico (opcional)" 
-                  placeholder="Ej: OLED65C1PUB (dejar en blanco si se desconoce)"
+                  label="Modelo Específico (*)" 
+                  placeholder="Ej: OLED65C1PUB"
                   value={t.modelo || ''}
                   onChange={e => updateTelevisor(t.id, 'modelo', e.target.value)}
                   disabled={readonly}

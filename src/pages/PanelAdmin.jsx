@@ -62,7 +62,7 @@ const PanelAdmin = () => {
     setSession(sess);
     cargarOrdenes();
     if (sess.role === 'ADMINISTRADOR') {
-      setUsuarios(getUsers());
+      getUsers().then(setUsuarios);
     }
   }, [navigate]);
 
@@ -185,26 +185,26 @@ const PanelAdmin = () => {
   };
 
   // ─── CRUD de Usuarios ─────────────────────────────────────────────────
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     setUserError('');
-    const result = addUser(newUser);
+    const result = await addUser(newUser);
     if (!result.success) { setUserError(result.error); return; }
-    setUsuarios(getUsers());
+    getUsers().then(setUsuarios);
     setShowAddUser(false);
     setNewUser({ email: '', password: '', role: 'TECNICO', cuadrilla: '' });
   };
 
-  const handleToggleBlock = (email) => {
-    const result = toggleBlock(email);
+  const handleToggleBlock = async (email) => {
+    const result = await toggleBlock(email);
     if (!result.success) { alert(result.error); return; }
-    setUsuarios(getUsers());
+    getUsers().then(setUsuarios);
   };
 
-  const handleDeleteUser = (email) => {
+  const handleDeleteUser = async (email) => {
     if (!confirm(`¿Estás seguro de eliminar al usuario "${email}"? Esta acción no se puede deshacer.`)) return;
-    const result = deleteUser(email);
+    const result = await deleteUser(email);
     if (!result.success) { alert(result.error); return; }
-    setUsuarios(getUsers());
+    getUsers().then(setUsuarios);
   };
 
   // ─── Filtrado de órdenes ───────────────────────────────────────────────

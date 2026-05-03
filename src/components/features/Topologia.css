@@ -131,6 +131,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+  white-space: nowrap;
   font-size: 0.65rem;
   font-weight: 700;
   color: white;
@@ -192,7 +193,9 @@
 /* DESKTOP: Arbol Horizontal */
 @media screen and (min-width: 769px) {
   .tree-root { align-items: center; }
-  .tree-children { gap: 2rem; padding-top: 2rem; justify-content: center; }
+  .tree-children { gap: 0; padding-top: 2rem; justify-content: center; align-items: flex-start; }
+  
+  /* Línea vertical central que baja del padre */
   .tree-children::before {
     content: '';
     position: absolute;
@@ -200,16 +203,59 @@
     background-color: var(--border-color);
     transform: translateX(-50%);
   }
-  .tree-node-container { align-items: center; }
+
+  .tree-node-container { 
+    align-items: center; 
+    padding-top: 2.5rem; /* Espacio exacto para la línea del hijo */
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Líneas horizontales que conectan a los hermanos */
+  .tree-node-container::before, .tree-node-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    width: 50%;
+    height: 2px;
+    background-color: var(--border-color);
+  }
+  .tree-node-container::before {
+    right: 50%;
+  }
+  .tree-node-container::after {
+    left: 50%;
+  }
+
+  /* Limpiar bordes innecesarios en el primer y último hijo */
+  .tree-node-container:first-child::before {
+    display: none;
+  }
+  .tree-node-container:last-child::after {
+    display: none;
+  }
+  /* Si es hijo único, no hay líneas horizontales, solo la vertical del padre */
+  .tree-node-container:only-child::before,
+  .tree-node-container:only-child::after {
+    display: none;
+  }
+
   .node-wrapper { flex-direction: column; align-items: center; }
-  /* Línea vertical que conecta nodo hijo con su padre */
+  
+  /* Línea vertical que baja hacia el nodo hijo desde la línea horizontal */
   .tree-line {
-    width: 0;
-    min-height: 2.5rem;
-    margin-bottom: 0.5rem;
+    position: absolute;
+    top: -2.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 2.5rem;
+    margin-bottom: 0;
     border-right: none;
     border-bottom: none;
+    background-color: transparent; /* Se colorea via border-left */
   }
+  
   /* Unificados con los nombres que genera el JSX */
   .tree-line.line-fo  { border-left: 3px solid var(--win-orange); }
   .tree-line.line-5g  { border-left: 3px dashed #A855F7; }
@@ -251,17 +297,19 @@
   /* En móvil, la línea se coloca horizontal desde la línea izquierda hacia la card */
   .tree-line { 
     height: 0; 
+    width: auto;
     min-width: 2rem; 
     position: absolute; 
     left: -2rem; 
     top: 50%;
     transform: translateY(-50%);
     z-index: 2;
+    border-left: none; /* limpiar el left de desktop */
   }
   
-  .tree-line.line-cable { border-top: 3px solid var(--win-orange); }
-  .tree-line.line-wireless-5g { border-top: 3px dashed #A855F7; }
-  .tree-line.line-wireless-24g { border-top: 3px dotted #2ECA7F; }
+  .tree-line.line-fo { border-top: 3px solid var(--win-orange); }
+  .tree-line.line-5g { border-top: 3px dashed #A855F7; }
+  .tree-line.line-24g { border-top: 3px dotted #2ECA7F; }
 }
 
 /* Node Cards */
