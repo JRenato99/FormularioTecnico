@@ -222,11 +222,6 @@ const Login = () => {
               {isLoading ? 'Iniciando Sesión...' : 'Ingresar'} <ArrowRight size={18} />
             </Button>
 
-            {/* Nota de credenciales de demo */}
-            <p className="login-demo-note">
-              Acceso Admin: <code>admin@win.pe</code> / <code>Admin123%</code>
-            </p>
-
           </form>
         </Card>
 
