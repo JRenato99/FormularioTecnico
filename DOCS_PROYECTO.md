@@ -4,232 +4,106 @@
 
 **FormularioTecnico** es una aplicación web progresiva (PWA-ready) diseñada para los técnicos de campo de **WIN Perú (ISP)**. Permite registrar digitalmente las instalaciones de fibra óptica, capturando topologías de red, mediciones de cobertura Wi-Fi, configuración de decodificadores WINBOX y dispositivos Smart TV (WinTV).
 
-La aplicación opera **100% offline** mediante `localStorage`, sin necesidad de backend o base de datos externa en su estado actual.
+El proyecto se encuentra en la **Fase 5 (Migración a Backend)**, donde se está reemplazando el `localStorage` original por una base de datos segura en la nube mediante **Supabase**.
 
 ---
 
 ## 🏗️ Arquitectura del Proyecto
 
-```
+```text
 FormularioTecnico/
-├── .github/workflows/
-│   └── deploy.yml              # GitHub Actions: Build + Deploy a GH Pages
 ├── public/                     # Assets estáticos
 ├── src/
 │   ├── components/
-│   │   ├── layout/
-│   │   │   ├── Header.jsx      # Barra de navegación (branding, tema, logout)
-│   │   │   ├── Header.css
-│   │   │   └── ProtectedRoute.jsx  # Guard de autenticación por roles
-│   │   ├── features/
-│   │   │   ├── TopologiaRed.jsx    # Editor visual de topología de red
-│   │   │   ├── FormularioMediciones.jsx  # Registro de mediciones Wi-Fi
-│   │   │   ├── FormularioWinbox.jsx     # Registro de decodificadores
-│   │   │   └── FormularioWintv.jsx      # Registro de Smart TVs
-│   │   └── ui/
-│   │       └── index.jsx       # Componentes UI reutilizables (Card, Button, Input, Select)
+│   │   ├── layout/           # Componentes de envoltura (Header, ProtectedRoute)
+│   │   ├── features/         # Componentes core (TopologiaRed, Formularios de Registro)
+│   │   └── ui/               # Componentes UI reutilizables (Card, Button, Input, Select)
 │   ├── pages/
-│   │   ├── Login.jsx           # Pantalla de acceso con captcha
-│   │   ├── Login.css
+│   │   ├── Login.jsx         # Pantalla de acceso
 │   │   ├── BuscadorCliente.jsx # Buscador de órdenes + historial
-│   │   ├── BuscadorCliente.css
-│   │   ├── FormularioTecnico.jsx   # Formulario principal de instalación
-│   │   ├── FormularioTecnico.css
-│   │   ├── PanelAdmin.jsx      # Panel de supervisión y administración
-│   │   └── PanelAdmin.css
+│   │   ├── FormularioTecnico.jsx # Formulario principal de instalación
+│   │   └── PanelAdmin.jsx    # Panel de supervisión y administración (CRUD usuarios)
 │   ├── utils/
-│   │   ├── authService.js      # Servicio de autenticación y CRUD de usuarios
-│   │   └── constants.js        # Constantes (ubicaciones, evaluación RSSI)
-│   ├── App.jsx                 # Router principal con rutas protegidas
-│   ├── main.jsx                # Punto de entrada de React
-│   └── index.css               # Variables CSS globales y tema
-├── vite.config.js              # Configuración de Vite
-├── package.json
-└── DOCS_PROYECTO.md            # Este archivo
+│   │   ├── supabaseClient.js # Cliente inicializado de Supabase
+│   │   ├── authService.js    # Servicio centralizado que conecta Supabase Auth con React
+│   │   └── constants.js      # Constantes (ubicaciones, evaluación RSSI)
+│   ├── App.jsx               # Router principal con rutas protegidas
+│   ├── main.jsx              # Punto de entrada de React
+│   └── index.css             # Variables CSS globales y tema (WIN-Peru)
+├── supabase/
+│   ├── schema.sql            # Definición completa de la BD, Tablas y RLS en Postgres
+│   └── fix_rls.sql           # Script de corrección de seguridad y recursión de políticas
+└── vite.config.js            # Configuración de Vite
 ```
 
 ---
 
-## 🔐 Sistema de Autenticación
+## 🔐 Sistema de Autenticación y Seguridad (Supabase Auth)
 
-### Flujo de Login
+El sistema de autenticación ha sido migrado completamente a **Supabase Auth**. Atrás quedó la persistencia insegura en el navegador.
 
-```
-┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
-│   Login.jsx │────▶│ authService  │────▶│  localStorage    │
-│  (Captcha)  │     │  .login()    │     │  'win_users'     │
-└─────────────┘     └──────────────┘     │  'win_session'   │
-                                          └──────────────────┘
-```
+### Flujo de Login Asíncrono
+1. El usuario ingresa credenciales en `/login`.
+2. `authService.js` autentica el correo y contraseña contra `supabase.auth.signInWithPassword`.
+3. Si el login es exitoso, se consulta la tabla `win_users` usando el `id` para obtener el **Rol** y **Cuadrilla**.
+4. Se revisa si el estado del usuario es `BLOQUEADO`. Si lo es, se rechaza la sesión.
+5. Se inserta silenciosamente un registro en `win_audit_logs`.
 
-### Roles y Permisos
+### Roles y Permisos (Protegidos por RLS en Base de Datos)
+| Rol | Acceso UI | Permisos Base de Datos (RLS) |
+|-----|-----------|------------------------------|
+| **ADMINISTRADOR** | `/admin` | Lectura total, CRUD Usuarios, Aprobación de Órdenes, Vista Logs |
+| **SUPERVISOR** | `/admin` | Lectura de Órdenes, Aprobación/Rechazo de Órdenes |
+| **TECNICO** | `/buscar` → `/formulario` | Escritura de Órdenes (Draft/Final), Lectura de sus propias órdenes |
 
-| Rol | Acceso | Capacidades |
-|-----|--------|-------------|
-| **ADMINISTRADOR** | `/admin` | Ver TODAS las órdenes, gestionar usuarios (CRUD), aprobar/rechazar |
-| **SUPERVISOR** | `/admin` | Ver órdenes, aprobar/rechazar. SIN gestión de usuarios |
-| **TECNICO** | `/buscar` → `/formulario` | Buscar OTs, llenar formulario, enviar reportes |
-
-### Usuarios Semilla (Demo)
-
-| Email | Contraseña | Rol | Cuadrilla |
-|-------|-----------|-----|-----------|
-| `admin` | `admin` | ADMINISTRADOR | GERENCIA |
-| `super` | `super` | SUPERVISOR | LIMA-NTE-01 |
-
-> Los técnicos se auto-registran al loguearse por primera vez con email + contraseña + cuadrilla.
-
-### Bloqueo de Cuentas
-- El Administrador puede **bloquear** cualquier cuenta (excepto al último admin activo).
-- Un usuario bloqueado ve el mensaje: *"Tu cuenta ha sido bloqueada por el Administrador"*.
+### Auditoría Completa (`win_audit_logs`)
+Todo evento crítico en la aplicación es registrado en la base de datos de manera automática, sin bloquear la interfaz:
+- `LOGIN` y `LOGOUT`
+- `CREAR_USUARIO`, `BLOQUEAR_USUARIO`, `ELIMINAR_USUARIO`
+- `APROBAR_ORDEN`, `RECHAZAR_ORDEN`
 
 ---
 
-## 🗂️ Flujo de Datos
+## 🗂️ Flujo de Datos (En Transición)
 
-### Claves de localStorage
-
-| Clave | Tipo | Descripción |
-|-------|------|-------------|
-| `win_session` | Object | Sesión activa: `{ email, role, cuadrilla }` |
-| `win_users` | Array | Lista de usuarios registrados con contraseñas |
-| `win_orders` | Array | Órdenes de trabajo con equipos, mediciones, CSV |
+Actualmente, las órdenes de trabajo siguen un **Modelo Híbrido** (El próximo paso del Roadmap es migrar esto a la nube al 100%).
 
 ### Ciclo de Vida de una Orden
-
+```text
+EN PROCESO (Draft Local) ──▶ ENVIADO (A Nube) ──▶ APROBADO (En Nube)
+                                                 └──▶ RECHAZADO (En Nube)
 ```
-EN PROCESO ──▶ ENVIADO ──▶ APROBADO
-                        └──▶ RECHAZADO
-```
 
-1. **EN PROCESO**: El técnico está llenando el formulario (auto-guardado continuo).
-2. **ENVIADO**: El técnico finalizó y envió al supervisor.
-3. **APROBADO / RECHAZADO**: El supervisor/admin revisó y dictaminó.
+1. **EN PROCESO (Offline-First)**: El técnico llena el formulario. Los datos se autoguardan de forma silenciosa en la memoria del navegador cada vez que teclea. Esto lo protege de cortes de internet en la casa del cliente.
+2. **ENVIADO (Envío Final)**: *[FASE PRÓXIMA]* Al terminar, presiona Enviar, el sistema se conecta a internet y dispara el JSON hacia la tabla `win_orders` en Supabase.
+3. **DICTAMEN**: El Administrador ve la orden en tiempo real y cambia su estado.
 
 ---
 
-## 🎨 Sistema de Diseño
+## 🎨 Sistema de Diseño y UI/UX
 
-### Paleta de Colores (Identidad WIN)
+El diseño de la aplicación cumple los más altos estándares visuales (Glassmorphism, variables dinámicas, responsividad total) y sigue la identidad corporativa de WIN Perú.
 
-| Variable CSS | Color | Uso |
-|-------------|-------|-----|
-| `--win-orange` | `#FF6B00` | Primario, branding WIN |
-| `--win-orange-dark` | `#cc5600` | Gradientes, hover |
-| `--win-bg-dark` | `#121212` | Fondo principal (modo oscuro) |
-| `--win-bg-surface` | `#1E1E1E` | Superficies elevadas |
-| `--text-primary` | `#FFFFFF` | Texto principal |
-| `--text-secondary` | `#B0B0B0` | Texto secundario |
-| `--success` | `#2ECA7F` | Estados positivos |
-| `--error` | `#FF4D4D` | Estados negativos |
-
-### Tipografía
-- **Font Family**: `Outfit` (Google Fonts), fallback a system fonts.
-
-### Modo Claro
-- Activado con la clase `body.light-theme` (toggle en Header).
+### Tipografía y Componentes Premium
+- Uso de `Outfit` (Google Fonts).
+- Componentes modulares y autocontenidos en `ui/index.jsx`.
+- **Topología de Red Mejorada**: Las líneas de la topología están construidas matemáticamente con posicionamiento absoluto para garantizar que los nodos y troncales no se desfasen independientemente del tamaño de la pantalla.
 
 ---
 
-## 📊 Reportes CSV
+## 📝 Control de Cambios / Roadmap
 
-### Estructura del Archivo Exportado
+### Fase 5 (Mayo 2026) - Actual
+- ✅ **Backend Conectado**: Instalación de `@supabase/supabase-js`.
+- ✅ **Auth Migrada**: Refactorización de `authService.js` para usar las APIs de la nube en vez de LocalStorage.
+- ✅ **Admin Panel Conectado**: CRUD de usuarios desde React conectado directamente a `public.win_users` en Supabase.
+- ✅ **Resolución de Conflictos RLS**: Corrección de bucles de recursión infinita en las políticas de seguridad en PostgreSQL. Corrección del naming `ADMIN` a `ADMINISTRADOR`.
+- ✅ **Fix UI Topología**: Refactorizado CSS de TopologiaRed usando `position: absolute` para evitar deformaciones en Flexbox y corregir renderizado móvil.
+- ⏳ **PENDIENTE**: Refactorizar `FormularioTecnico.jsx` para despachar el objeto final a Supabase.
 
-El CSV generado contiene 3 secciones separadas por líneas vacías:
-
-1. **Mediciones Wi-Fi**: S/N del router, gestionabilidad, ambiente, piso, velocidades 2.4G/5G, RSSI, evaluación de señal, dependencia, tipo de conexión.
-2. **Decodificadores WINBOX**: S/N, ambiente, equipo padre, modo conexión (cable/Wi-Fi), banda, velocidad, RSSI.
-3. **Streaming WinTV**: Ambiente, marca, modelo, modalidad de red.
-
-### Compatibilidad Excel
-- Se usa **BOM (`\uFEFF`)** + **Blob** para garantizar que los caracteres latinos (ñ, tildes, °) se muestren correctamente al abrir en Excel.
-
----
-
-## 🛡️ Seguridad Actual
-
-### Implementado
-- ✅ Captcha matemático anti-bot en login.
-- ✅ Rutas protegidas por rol (`ProtectedRoute`).
-- ✅ Guard de código de cliente (no se puede acceder a `/formulario` sin pasar por el buscador).
-- ✅ Protección contra eliminación del último administrador.
-
-### Pendiente para Producción
-- ⚠️ Contraseñas almacenadas en texto plano (necesita hashing con bcrypt en backend).
-- ⚠️ Sin tokens JWT (localStorage como sesión efímera).
-- ⚠️ Sin HTTPS forzado en el servidor.
-- ⚠️ Sin rate-limiting para intentos de login.
-
----
-
-## 🚀 Guía de Desarrollo Local
-
-### Requisitos
-- Node.js v18+
-- npm v9+
-
-### Instalación
-```bash
-git clone https://github.com/JRenato99/FormularioTecnico.git
-cd FormularioTecnico
-npm install
-```
-
-### Ejecución en Desarrollo
-```bash
-npm run dev
-```
-La aplicación estará disponible en `http://localhost:5173/FormularioTecnico/`
-
-### Build de Producción
-```bash
-npm run build
-```
-Los archivos compilados se generan en `./dist/`.
-
-### Preview del Build
-```bash
-npx vite preview
-```
-
----
-
-## 📡 Despliegue
-
-### GitHub Pages (Actual)
-- **URL**: `https://jrenato99.github.io/FormularioTecnico/`
-- **Workflow**: `.github/workflows/deploy.yml`
-- **Trigger**: Push a la rama `main`.
-- **Proceso**: `npm install` → `npm run build` → Upload `./dist/` → Deploy Pages.
-
-### Configuración Vite
-```javascript
-// vite.config.js
-base: process.env.VERCEL ? '/' : '/FormularioTecnico/'
-```
-
----
-
-## 📝 Control de Cambios
-
-### Sesión 3 (Abril 2026)
-- **authService.js**: Servicio centralizado de autenticación con CRUD de usuarios persistente.
-- **Header.jsx**: Botón de cerrar sesión + badge de rol coloreado.
-- **Login.jsx**: Validación contra authService, mensajes de error inline, inicialización de usuarios semilla.
-- **FormularioTecnico.jsx**: Guard de ruta que impide acceso sin código de cliente.
-- **PanelAdmin.jsx**: Rediseño completo con acordeón expandible (topología, mediciones, winboxes, TVs), CRUD real de usuarios, diferenciación ADMINISTRADOR vs SUPERVISOR.
-- **Limpieza global**: Código documentado con JSDoc, eliminación de código muerto, CSS organizado por secciones.
-
-### Sesión 2 (Abril 2026)
-- Captcha matemático en login.
-- Auto-guardado en localStorage.
-- Soporte para APs de terceros (no gestionables).
-- Modal de resumen pre-envío.
-- Exportación CSV con BOM para Excel.
-
-### Sesión 1 (Abril 2026)
-- Estructura inicial con Vite + React.
-- Topología de red visual (ONT → APs → Extensores).
-- Formulario de mediciones Wi-Fi dual-band.
-- Módulos WINBOX y WinTV.
-- Despliegue en GitHub Pages.
+### Fases Anteriores (Abril 2026)
+- Definición y programación de `schema.sql`.
+- Generación de PDF de Topología utilizando `html2canvas` y `jsPDF`.
+- Generador y Exportador de archivos CSV optimizado para Microsoft Excel (usando BOM `\uFEFF`).
+- Enrutamiento protegido por guards.
+- Implementación del Captcha Matemático.
