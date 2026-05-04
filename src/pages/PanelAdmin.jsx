@@ -6,13 +6,14 @@ import {
   CheckCircle, XCircle, FileText, Send, Clock, User, Filter, 
   AlertCircle, Users, HardDrive, ChevronDown, ChevronUp, 
   Router as RouterIcon, Globe, Tv, Trash2, ShieldOff, Shield,
-  Plus, Wifi, Download
+  Plus, Wifi, Download, Key
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import TopologiaRed from '../components/features/TopologiaRed';
-import { getSession, getUsers, addUser, toggleBlock, deleteUser, crearNotificacion, addAuditLog } from '../utils/authService';
+import { getSession, getUsers, addUser, toggleBlock, deleteUser, crearNotificacion, addAuditLog, resetUserPassword } from '../utils/authService';
 import { getOrders, updateOrderStatus } from '../utils/databaseService';
+import { useUI } from '../components/ui/Modal.jsx';
 import { getRssiStyle } from '../utils/constants';
 import './PanelAdmin.css';
 
@@ -27,6 +28,7 @@ import './PanelAdmin.css';
  */
 const PanelAdmin = () => {
   const navigate = useNavigate();
+  const { showModal, showToast } = useUI();
   const [session, setSession]             = useState(null);
   const [ordenes, setOrdenes]             = useState([]);
   const [filtroEstado, setFiltroEstado]   = useState('TODOS');
@@ -44,8 +46,12 @@ const PanelAdmin = () => {
   // ─── Gestión de Usuarios (solo ADMIN) ──────────────────────────────────
   const [usuarios, setUsuarios]         = useState([]);
   const [showAddUser, setShowAddUser]   = useState(false);
-  const [newUser, setNewUser]           = useState({ email: '', password: '', role: 'TECNICO', cuadrilla: '' });
+  const [newUser, setNewUser]           = useState({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '' });
   const [userError, setUserError]       = useState('');
+  // Estado para modal de reset de contraseña
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetTarget, setResetTarget]       = useState(null);
+  const [resetPwd, setResetPwd]             = useState('');
 
   // ─── Modal de motivo de rechazo ───────────────────────────────────────
   const [showRechazoModal, setShowRechazoModal] = useState(false);
@@ -92,15 +98,14 @@ const PanelAdmin = () => {
   const aprobarOrden = async (codigoCliente) => {
     const orden = ordenes.find(o => o.codigoCliente === codigoCliente);
     const result = await updateOrderStatus(codigoCliente, 'APROBADO');
-    if (!result.success) return alert('Error al aprobar: ' + result.error);
+    if (!result.success) { showToast({ type: 'error', title: 'Error', message: result.error }); return; }
 
-    // Actualizar estado local para reflejar el cambio de inmediato sin recargar
     setOrdenes(prev => prev.map(o =>
       o.codigoCliente === codigoCliente ? { ...o, status: 'APROBADO' } : o
     ));
-
     if (orden?.tecnicoEmail) crearNotificacion(orden.tecnicoEmail, 'APROBADO', codigoCliente);
     addAuditLog('APROBAR', 'ORDEN', codigoCliente, { gestionadoPor: session.email });
+    showToast({ type: 'success', title: 'Orden Aprobada', message: `Orden ${codigoCliente} aprobada exitosamente.` });
   };
 
   // ─── Abrir modal de rechazo ───────────────────────────────────────────
@@ -112,24 +117,22 @@ const PanelAdmin = () => {
 
   // ─── Confirmar rechazo con motivo (Supabase) ─────────────────────────
   const confirmarRechazo = async () => {
-    if (!motivoRechazo.trim()) return alert('Debes ingresar el motivo del rechazo antes de confirmar.');
+    if (!motivoRechazo.trim()) { showToast({ type: 'warning', title: 'Campo requerido', message: 'Debes ingresar el motivo del rechazo.' }); return; }
     const codigoCliente = ordenParaRechazar.codigoCliente;
-    
-    const result = await updateOrderStatus(codigoCliente, 'RECHAZADO');
-    if (!result.success) return alert('Error al rechazar: ' + result.error);
 
-    // Actualizar estado local de inmediato
+    const result = await updateOrderStatus(codigoCliente, 'RECHAZADO');
+    if (!result.success) { showToast({ type: 'error', title: 'Error', message: result.error }); return; }
+
     setOrdenes(prev => prev.map(o =>
       o.codigoCliente === codigoCliente
         ? { ...o, status: 'RECHAZADO', motivoRechazo: motivoRechazo.trim() }
         : o
     ));
-
     if (ordenParaRechazar?.tecnicoEmail) {
       crearNotificacion(ordenParaRechazar.tecnicoEmail, 'RECHAZADO', codigoCliente, motivoRechazo.trim());
     }
     addAuditLog('RECHAZAR', 'ORDEN', codigoCliente, { motivo: motivoRechazo.trim(), gestionadoPor: session.email });
-
+    showToast({ type: 'info', title: 'Orden Rechazada', message: `Orden ${codigoCliente} rechazada.` });
     setShowRechazoModal(false);
     setOrdenParaRechazar(null);
     setMotivoRechazo('');
@@ -190,20 +193,48 @@ const PanelAdmin = () => {
     if (!result.success) { setUserError(result.error); return; }
     getUsers().then(setUsuarios);
     setShowAddUser(false);
-    setNewUser({ email: '', password: '', role: 'TECNICO', cuadrilla: '' });
+    setNewUser({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '' });
+    showToast({ type: 'success', title: 'Usuario creado', message: `${newUser.email} fue creado exitosamente. Deberá crear su contraseña al primer ingreso.` });
   };
 
   const handleToggleBlock = async (email) => {
     const result = await toggleBlock(email);
-    if (!result.success) { alert(result.error); return; }
+    if (!result.success) { showModal({ type: 'error', title: 'Error', message: result.error }); return; }
     getUsers().then(setUsuarios);
+    showToast({ type: 'info', title: 'Usuario actualizado', message: `Estado del usuario ${email} fue modificado.` });
   };
 
   const handleDeleteUser = async (email) => {
-    if (!confirm(`¿Estás seguro de eliminar al usuario "${email}"? Esta acción no se puede deshacer.`)) return;
-    const result = await deleteUser(email);
-    if (!result.success) { alert(result.error); return; }
-    getUsers().then(setUsuarios);
+    showModal({
+      type: 'confirm',
+      title: '¿Eliminar Usuario?',
+      message: `¿Estás seguro de eliminar a "${email}"? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Sí, eliminar',
+      cancelLabel: 'Cancelar',
+      onConfirm: async () => {
+        const result = await deleteUser(email);
+        if (!result.success) { showModal({ type: 'error', title: 'Error', message: result.error }); return; }
+        getUsers().then(setUsuarios);
+        showToast({ type: 'success', title: 'Usuario eliminado', message: `${email} fue eliminado del sistema.` });
+      }
+    });
+  };
+
+  const handleOpenReset = (email) => {
+    setResetTarget(email);
+    setResetPwd('');
+    setShowResetModal(true);
+  };
+
+  const handleResetPassword = async () => {
+    const result = await resetUserPassword(resetTarget, resetPwd);
+    if (!result.success) { showToast({ type: 'error', title: 'Error', message: result.error }); return; }
+    setShowResetModal(false);
+    showModal({
+      type: 'success',
+      title: 'Contraseña Restablecida',
+      message: `La cuenta de ${resetTarget} fue marcada para crear nueva contraseña en su próximo ingreso.`
+    });
   };
 
   // ─── Filtrado de órdenes ───────────────────────────────────────────────
@@ -527,13 +558,16 @@ const PanelAdmin = () => {
                   )}
                   <div className="add-user-grid">
                     <Input label="Email / Usuario" placeholder="tecnico@win.pe" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} />
-                    <Input label="Contraseña" type="password" placeholder="••••••" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} />
+                    <Input label="Nombre completo" placeholder="Juan Pérez" value={newUser.nombre} onChange={e => setNewUser({...newUser, nombre: e.target.value})} />
+                    <Input label="Contraseña temporal" type="password" placeholder="El usuario la cambiará al ingresar" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} />
                     <Select label="Rol" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})} options={[
                       { label: 'Técnico', value: 'TECNICO' },
                       { label: 'Supervisor', value: 'SUPERVISOR' },
                       { label: 'Administrador', value: 'ADMINISTRADOR' }
                     ]} />
-                    <Input label="Cuadrilla" placeholder="LIMA-NTE-01" value={newUser.cuadrilla} onChange={e => setNewUser({...newUser, cuadrilla: e.target.value})} />
+                    {newUser.role === 'TECNICO' && (
+                      <Input label="Cuadrilla" placeholder="LIMA-NTE-01" value={newUser.cuadrilla} onChange={e => setNewUser({...newUser, cuadrilla: e.target.value})} />
+                    )}
                   </div>
                   <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
                     <Button onClick={handleAddUser}>Guardar Usuario</Button>
@@ -573,6 +607,9 @@ const PanelAdmin = () => {
                               <>
                                 <button className="icon-action-btn" onClick={() => handleToggleBlock(u.email)} title={u.estado === 'Activo' ? 'Bloquear' : 'Desbloquear'}>
                                   {u.estado === 'Activo' ? <ShieldOff size={16} color="#ffa500" /> : <Shield size={16} color="#00C853" />}
+                                </button>
+                                <button className="icon-action-btn" onClick={() => handleOpenReset(u.email)} title="Restablecer contraseña" style={{ color: '#1E90FF' }}>
+                                  <Key size={16} />
                                 </button>
                                 <button className="icon-action-btn icon-action-btn--danger" onClick={() => handleDeleteUser(u.email)} title="Eliminar usuario">
                                   <Trash2 size={16} />
@@ -623,6 +660,35 @@ const PanelAdmin = () => {
             </Button>
             <Button style={{ flex: 1, background: '#FF3D00', color: '#fff', borderColor: '#FF3D00' }} onClick={confirmarRechazo}>
               <XCircle size={16} /> Confirmar Rechazo
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )}
+    {/* ─── MODAL DE RESET DE CONTRASEÑA ──────────────────────────────── */}
+    {showResetModal && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+        <Card style={{ width: '100%', maxWidth: '420px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, color: '#1E90FF', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Key size={20} /> Restablecer Contraseña
+            </h3>
+            <button onClick={() => setShowResetModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.4rem' }}>×</button>
+          </div>
+          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+            Asigna una <strong style={{ color: 'var(--text-primary)' }}>contraseña temporal</strong> para <strong style={{ color: '#1E90FF' }}>{resetTarget}</strong>. El usuario deberá cambiarla en su próximo ingreso.
+          </p>
+          <Input
+            label="Nueva Contraseña Temporal (*)"
+            type="password"
+            placeholder="Mín. 8 chars, mayúscula, número y símbolo"
+            value={resetPwd}
+            onChange={e => setResetPwd(e.target.value)}
+          />
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <Button variant="secondary" style={{ flex: 1 }} onClick={() => setShowResetModal(false)}>Cancelar</Button>
+            <Button style={{ flex: 1, background: '#1E90FF', borderColor: '#1E90FF' }} onClick={handleResetPassword}>
+              <Key size={16} /> Confirmar Reset
             </Button>
           </div>
         </Card>

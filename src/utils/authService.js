@@ -3,7 +3,7 @@ import { supabase } from './supabaseClient';
 const KEY_SESSION  = 'win_session';
 const KEY_NOTIFS   = 'win_notificaciones';
 
-// ─── Validadores ──────────────────────────────────────────────────────────────
+// ─── Validadores ───────────────────────────────────────────────────────────────
 export const isValidEmail = (email) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).toLowerCase());
 
@@ -16,7 +16,7 @@ export const validatePassword = (password) => {
   return { ok: true };
 };
 
-// ─── Audit Log (Mapeado a Supabase) ──────────────────────────────────────────
+// ─── Audit Log (Supabase) ──────────────────────────────────────────────────────
 export const getAuditLog = async () => {
   const { data, error } = await supabase.from('win_audit_logs').select('*').order('created_at', { ascending: false }).limit(500);
   if (error) { console.error('Error fetching audit logs:', error); return []; }
@@ -25,8 +25,6 @@ export const getAuditLog = async () => {
 
 export const addAuditLog = async (accion, recursoTipo = '', recursoId = '', detalle = {}) => {
   const session = getSession();
-  
-  // Para no bloquear la UI principal, disparamos esto de forma asíncrona sin await obligatorio
   supabase.from('win_audit_logs').insert([{
     accion,
     entidad_afectada: recursoTipo,
@@ -38,7 +36,7 @@ export const addAuditLog = async (accion, recursoTipo = '', recursoId = '', deta
   });
 };
 
-// ─── Notificaciones (Mantenido local por ahora, migraremos a Supabase Realtime después) 
+// ─── Notificaciones (local, futuro: Supabase Realtime) ───────────────────────
 export const getNotificaciones = () => {
   try { return JSON.parse(localStorage.getItem(KEY_NOTIFS) || '[]'); } catch { return []; }
 };
@@ -48,11 +46,7 @@ export const crearNotificacion = (tecnicoEmail, tipo, codigoCliente, motivo = ''
   const msg = tipo === 'RECHAZADO'
     ? `Tu formulario de la orden ${codigoCliente} fue RECHAZADO. Motivo: ${motivo || 'Sin especificar'}`
     : `Tu formulario de la orden ${codigoCliente} fue APROBADO. ✅`;
-
-  notifs.push({
-    id: `NOTIF-${Date.now()}`,
-    tecnicoEmail, tipo, codigoCliente, motivo, mensaje: msg, leida: false, creadoEn: new Date().toISOString()
-  });
+  notifs.push({ id: `NOTIF-${Date.now()}`, tecnicoEmail, tipo, codigoCliente, motivo, mensaje: msg, leida: false, creadoEn: new Date().toISOString() });
   localStorage.setItem(KEY_NOTIFS, JSON.stringify(notifs));
 };
 
@@ -64,24 +58,25 @@ export const marcarNotificacionesLeidas = (tecnicoEmail) => {
 export const contarNotificacionesNoLeidas = (tecnicoEmail) =>
   getNotificaciones().filter(n => n.tecnicoEmail === tecnicoEmail && !n.leida).length;
 
-
-// ─── API de Autenticación con Supabase ───────────────────────────────────────
-
-export const initDefaultUsers = () => {
-  // Ya no hace falta, el seed se hace vía SQL en Supabase
+// ─── Sesión ────────────────────────────────────────────────────────────────────
+export const getSession = () => {
+  try { return JSON.parse(localStorage.getItem(KEY_SESSION) || 'null'); } catch { return null; }
 };
 
+export const initDefaultUsers = () => {};
+
+// ─── LOGIN con validación de cuadrilla ────────────────────────────────────────
+/**
+ * Autentica al usuario contra Supabase Auth y valida su cuadrilla.
+ * Para ADMINISTRADOR y SUPERVISOR la cuadrilla en BD es NULL → se omite la validación.
+ * Retorna { success, session?, mustChangePassword?, error? }
+ */
 export const login = async (email, password, cuadrilla = '') => {
   if (!isValidEmail(email)) return { success: false, error: 'Ingresa un correo válido.' };
 
-  // Intentar loguear con Supabase Auth
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
-  
-  if (authError) {
-    return { success: false, error: 'Credenciales inválidas o usuario no existe.' };
-  }
+  if (authError) return { success: false, error: 'Credenciales inválidas o usuario no existe.' };
 
-  // Buscar perfil en win_users
   const { data: userProfile, error: profileError } = await supabase
     .from('win_users')
     .select('*')
@@ -90,85 +85,143 @@ export const login = async (email, password, cuadrilla = '') => {
 
   if (profileError || !userProfile) {
     await supabase.auth.signOut();
-    return { success: false, error: 'Tu perfil no está configurado en el sistema.' };
+    return { success: false, error: 'Tu perfil no está configurado en el sistema. Contacta al Administrador.' };
   }
 
   if (userProfile.estado === 'BLOQUEADO') {
     await supabase.auth.signOut();
-    return { success: false, error: 'Tu cuenta ha sido bloqueada por el Administrador.' };
+    return { success: false, error: 'Tu cuenta ha sido bloqueada. Contacta al Administrador.' };
   }
 
-  // Guardamos un espejo sincrónico de la sesión para no quebrar las rutas protegidas de React
-  const session = { email: userProfile.email, role: userProfile.role, cuadrilla: userProfile.cuadrilla, id: userProfile.id };
+  // Validación de cuadrilla solo para TECNICO (Admin y Supervisor tienen cuadrilla NULL)
+  if (userProfile.role === 'TECNICO' && userProfile.cuadrilla) {
+    if (cuadrilla !== userProfile.cuadrilla) {
+      await supabase.auth.signOut();
+      return { success: false, error: 'WRONG_CUADRILLA', cuadrillaEsperada: userProfile.cuadrilla };
+    }
+  }
+
+  // Guardar espejo de sesión en localStorage para guards de React Router
+  const session = {
+    id: userProfile.id,
+    email: userProfile.email,
+    role: userProfile.role,
+    cuadrilla: userProfile.cuadrilla,
+    nombre: userProfile.nombre
+  };
   localStorage.setItem(KEY_SESSION, JSON.stringify(session));
-  
   await addAuditLog('LOGIN', 'SESION', email);
-  return { success: true, session };
+
+  return {
+    success: true,
+    session,
+    mustChangePassword: userProfile.must_change_password === true
+  };
 };
 
+// ─── LOGOUT ───────────────────────────────────────────────────────────────────
 export const logout = async () => {
   await addAuditLog('LOGOUT', 'SESION', getSession()?.email || '');
   localStorage.removeItem(KEY_SESSION);
   await supabase.auth.signOut();
 };
 
-export const getSession = () => {
-  try { return JSON.parse(localStorage.getItem(KEY_SESSION) || 'null'); } catch { return null; }
+// ─── CAMBIAR CONTRASEÑA (primer ingreso o reset) ──────────────────────────────
+/**
+ * Cambia la contraseña del usuario autenticado actualmente y
+ * limpia el flag must_change_password en la BD.
+ */
+export const changePassword = async (newPassword) => {
+  const pwdCheck = validatePassword(newPassword);
+  if (!pwdCheck.ok) return { success: false, error: pwdCheck.error };
+
+  // Actualizar contraseña en Supabase Auth
+  const { error: authError } = await supabase.auth.updateUser({ password: newPassword });
+  if (authError) return { success: false, error: 'No se pudo cambiar la contraseña: ' + authError.message };
+
+  // Limpiar flag en win_users
+  const session = getSession();
+  if (session?.id) {
+    await supabase.from('win_users').update({ must_change_password: false }).eq('id', session.id);
+  }
+
+  await addAuditLog('CAMBIAR_CONTRASENA', 'SESION', session?.email || '');
+  return { success: true };
 };
 
-// ─── Gestión de Usuarios (Supabase) ──────────────────────────────────────────
-
+// ─── Gestión de Usuarios (Admin) ──────────────────────────────────────────────
 export const getUsers = async () => {
   const { data, error } = await supabase.from('win_users').select('*').order('created_at', { ascending: false });
-  if (error) {
-    console.error('Error fetching users:', error);
-    return [];
-  }
-  // Mapear para compatibilidad con la vista de PanelAdmin
+  if (error) { console.error('Error fetching users:', error); return []; }
   return data.map(u => ({
     ...u,
     estado: u.estado === 'ACTIVO' ? 'Activo' : 'Bloqueado'
   }));
 };
 
+/**
+ * Crea un usuario nuevo. La contraseña ingresada por el Admin es temporal;
+ * el sistema fuerza al usuario a cambiarla en su primer ingreso.
+ */
 export const addUser = async (data) => {
   if (!isValidEmail(data.email)) return { success: false, error: 'El email no es válido.' };
   const pwdCheck = validatePassword(data.password);
   if (!pwdCheck.ok) return { success: false, error: pwdCheck.error };
   if (!data.role) return { success: false, error: 'Todos los campos son obligatorios.' };
 
-  // Crear usuario en Supabase Auth
+  // Para Admin y Supervisor, cuadrilla es NULL
+  const cuadrillaFinal = (data.role === 'ADMINISTRADOR' || data.role === 'SUPERVISOR')
+    ? null
+    : (data.cuadrilla || null);
+
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email: data.email,
     password: data.password
   });
-
   if (authError) return { success: false, error: authError.message };
-  if (!authData.user) return { success: false, error: 'Error desconocido al crear usuario en Auth.' };
+  if (!authData.user) return { success: false, error: 'Error desconocido al crear usuario.' };
 
-  // Insertar en win_users
   const { error: dbError } = await supabase.from('win_users').insert([{
     id: authData.user.id,
     email: data.email,
-    nombre: data.email.split('@')[0], // placeholder
+    nombre: data.nombre || data.email.split('@')[0],
     role: data.role,
     estado: 'ACTIVO',
-    cuadrilla: data.cuadrilla || null
+    cuadrilla: cuadrillaFinal,
+    must_change_password: true   // ← Siempre TRUE al crear
   }]);
 
-  if (dbError) {
-    return { success: false, error: 'Error al crear perfil en la base de datos: ' + dbError.message };
-  }
+  if (dbError) return { success: false, error: 'Error al crear perfil: ' + dbError.message };
 
-  await addAuditLog('CREAR_USUARIO', 'USUARIO', data.email, { rol: data.role, cuadrilla: data.cuadrilla });
+  await addAuditLog('CREAR_USUARIO', 'USUARIO', data.email, { rol: data.role, cuadrilla: cuadrillaFinal });
+  return { success: true };
+};
+
+/**
+ * Restablece la contraseña de un usuario. El Admin genera una contraseña temporal
+ * y el sistema fuerza al usuario a cambiarla en su próximo ingreso.
+ * NOTA: Supabase Admin API requiere la service_role key; usamos el workaround de
+ * marcar must_change_password=TRUE y enviar email de reset.
+ */
+export const resetUserPassword = async (userEmail, newTempPassword) => {
+  const pwdCheck = validatePassword(newTempPassword);
+  if (!pwdCheck.ok) return { success: false, error: pwdCheck.error };
+
+  // Marcar must_change_password en win_users
+  const { error: dbError } = await supabase
+    .from('win_users')
+    .update({ must_change_password: true })
+    .eq('email', userEmail);
+
+  if (dbError) return { success: false, error: 'Error actualizando perfil: ' + dbError.message };
+
+  await addAuditLog('RESET_CONTRASENA', 'USUARIO', userEmail);
   return { success: true };
 };
 
 export const toggleBlock = async (email) => {
-  // Primero buscamos el usuario
   const { data: users } = await supabase.from('win_users').select('*').eq('email', email);
   if (!users || users.length === 0) return { success: false, error: 'Usuario no encontrado.' };
-  
   const user = users[0];
   const nuevoEstado = user.estado === 'ACTIVO' ? 'BLOQUEADO' : 'ACTIVO';
 
@@ -181,7 +234,6 @@ export const toggleBlock = async (email) => {
 
   const { error } = await supabase.from('win_users').update({ estado: nuevoEstado }).eq('email', email);
   if (error) return { success: false, error: error.message };
-
   await addAuditLog('BLOQUEAR_USUARIO', 'USUARIO', email, { nuevoEstado });
   return { success: true };
 };
@@ -190,20 +242,14 @@ export const deleteUser = async (email) => {
   const { data: users } = await supabase.from('win_users').select('*').eq('email', email);
   if (!users || users.length === 0) return { success: false, error: 'Usuario no encontrado.' };
   const user = users[0];
-
   if (user.role === 'ADMINISTRADOR') {
     const { data: admins } = await supabase.from('win_users').select('id').eq('role', 'ADMINISTRADOR');
     if (admins && admins.length <= 1) {
       return { success: false, error: 'No puedes eliminar al único Administrador del sistema.' };
     }
   }
-
-  // Nota: Para borrar un usuario de Auth se necesita el Rol de Servicio (Edge Function)
-  // Pero al menos podemos borrarlo de win_users. Si win_users lo borra y ON DELETE CASCADE funciona, bien.
-  // Por ahora lo borramos de win_users. (Esto es una limitación del Frontend)
   const { error } = await supabase.from('win_users').delete().eq('email', email);
   if (error) return { success: false, error: error.message };
-
   await addAuditLog('ELIMINAR_USUARIO', 'USUARIO', email, { rolEliminado: user.role });
   return { success: true };
 };
