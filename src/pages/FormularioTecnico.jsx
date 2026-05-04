@@ -309,19 +309,11 @@ const FormularioTecnico = () => {
             <h1 className="dashboard-title">Formulario de Instalación</h1>
             <p className="dashboard-subtitle">Orden/Cliente: <strong>{codigoCliente}</strong></p>
           </div>
-                 const mm = String(ahora.getMonth() + 1).padStart(2, '0');
-                 const aa = String(ahora.getFullYear()).slice(2);
-                 const nombreArchivo = `${codigoCliente}-${dd}-${mm}-${aa}-mediciones.csv`;
-
-                 const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-                 const link = document.createElement('a');
-                 link.href = URL.createObjectURL(blob);
-                 link.download = nombreArchivo;
-                 document.body.appendChild(link);
-                 link.click();
-                 document.body.removeChild(link);
-              }
-            }} disabled={mediciones.length === 0} variant="primary">
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <Button onClick={handleExportPDF} disabled={isExporting || equipos.length === 0} variant="secondary">
+              {isExporting ? 'Generando...' : <><Download size={18} /> Exportar Topología PDF</>}
+            </Button>
+            <Button onClick={doDescargarCSV} disabled={mediciones.length === 0} variant="primary">
               <FileSpreadsheet size={18} /> Descargar Borrador Excel
             </Button>
           </div>
