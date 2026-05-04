@@ -10,6 +10,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { Download, CheckCircle, FileSpreadsheet, Save, X, Globe, Tv, Router as RouterIcon, Send } from 'lucide-react';
 import { getRssiStyle, UBICACIONES } from '../utils/constants';
+import { getDraft, saveDraft, saveOrder } from '../utils/databaseService';
 import './FormularioTecnico.css';
 
 /**
@@ -57,60 +58,19 @@ const FormularioTecnico = () => {
       return;
     }
 
-    const storedOrders = localStorage.getItem('win_orders');
-    if (storedOrders) {
-      try {
-        const orders = JSON.parse(storedOrders);
-        const miOrden = orders.find(o => o.codigoCliente === codigoCliente);
-        if (miOrden) {
-          if (miOrden.equipos) setEquipos(miOrden.equipos);
-          if (miOrden.mediciones) setMediciones(miOrden.mediciones);
-          if (miOrden.winboxes) setWinboxes(miOrden.winboxes);
-          if (miOrden.televisores) setTelevisores(miOrden.televisores);
-        }
-      } catch (e) {
-        console.error("Error leyendo caché", e);
-      }
+    const draft = getDraft(codigoCliente);
+    if (draft) {
+      if (draft.equipos) setEquipos(draft.equipos);
+      if (draft.mediciones) setMediciones(draft.mediciones);
+      if (draft.winboxes) setWinboxes(draft.winboxes);
+      if (draft.televisores) setTelevisores(draft.televisores);
     }
   }, [codigoCliente, navigate]);
 
   // 2. Autoguardado silencioso con cada cambio (Debounced logic effect)
   useEffect(() => {
     const saveToCache = () => {
-      const storedOrders = localStorage.getItem('win_orders');
-      let orders = storedOrders ? JSON.parse(storedOrders) : [];
-      let miOrden = orders.find(o => o.codigoCliente === codigoCliente);
-
-      // Extraer datos del técnico desde la sesión actual
-      let tecnicoEmail = 'Desconocido';
-      let tecnicoCuadrilla = 'LIMA-NTE-01';
-      try {
-        const sesStr = localStorage.getItem('win_session');
-        if (sesStr) {
-          const sDec = JSON.parse(sesStr);
-          tecnicoEmail = sDec.email || 'Desconocido';
-          tecnicoCuadrilla = sDec.cuadrilla || 'Desconocido';
-        }
-      } catch (e) {}
-      
-      const saveData = {
-        codigoCliente,
-        equipos,
-        mediciones,
-        winboxes,
-        televisores,
-        tecnicoEmail,
-        tecnicoCuadrilla,
-        fechaGuardado: Date.now(),
-        status: miOrden ? (miOrden.status !== 'EN PROCESO' ? miOrden.status : 'EN PROCESO') : 'EN PROCESO'
-      };
-
-      if (miOrden) {
-        orders = orders.map(o => o.codigoCliente === codigoCliente ? { ...o, ...saveData } : o);
-      } else {
-        orders.push(saveData);
-      }
-      localStorage.setItem('win_orders', JSON.stringify(orders));
+      saveDraft(codigoCliente, { equipos, mediciones, winboxes, televisores });
     };
 
     if (equipos.length > 0 || mediciones.length > 0) {
@@ -300,41 +260,27 @@ const FormularioTecnico = () => {
     setShowSummary(true);
   };
 
-  const handleEnviarAdmin = () => {
-    // Guardar estado final ENVIADO y CSV incrustado
-    const storedOrders = localStorage.getItem('win_orders');
-    let orders = storedOrders ? JSON.parse(storedOrders) : [];
-    let miOrden = orders.find(o => o.codigoCliente === codigoCliente);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Extraer datos del técnico
-    let tecnicoEmail = 'Desconocido';
-    let tecnicoCuadrilla = 'Desconocido';
-    try {
-      const sesStr = localStorage.getItem('win_session');
-      if (sesStr) {
-        const sDec = JSON.parse(sesStr);
-        tecnicoEmail = sDec.email || 'Desconocido';
-        tecnicoCuadrilla = sDec.cuadrilla || 'Desconocido';
-      }
-    } catch (e) {}
-    
-    const saveData = {
-      codigoCliente, equipos, mediciones, winboxes, televisores,
-      tecnicoEmail, tecnicoCuadrilla,
-      csvContent: csvContentGenerated,
-      fechaGuardado: Date.now(),
-      status: 'ENVIADO'
+  const handleEnviarAdmin = async () => {
+    setIsSubmitting(true);
+    const payload = {
+      equipos,
+      mediciones,
+      winboxes,
+      televisores,
+      clienteInfo: { csvContent: csvContentGenerated }
     };
+    
+    const result = await saveOrder(codigoCliente, payload);
+    setIsSubmitting(false);
 
-    if (miOrden) {
-        orders = orders.map(o => o.codigoCliente === codigoCliente ? { ...o, ...saveData } : o);
+    if (result.success) {
+      alert("¡Reporte enviado exitosamente y a la espera de Aprobación!");
+      navigate('/buscar');
     } else {
-        orders.push(saveData);
+      alert("Error al enviar el reporte:\n\n" + result.error);
     }
-    localStorage.setItem('win_orders', JSON.stringify(orders));
-
-    alert("¡Reporte enviado exitosamente y a la espera de Aprobación!");
-    navigate('/buscar');
   };
 
   const doDescargarCSV = () => {
@@ -363,17 +309,6 @@ const FormularioTecnico = () => {
             <h1 className="dashboard-title">Formulario de Instalación</h1>
             <p className="dashboard-subtitle">Orden/Cliente: <strong>{codigoCliente}</strong></p>
           </div>
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-            <Button onClick={handleExportPDF} disabled={isExporting || equipos.length === 0} variant="secondary">
-              {isExporting ? 'Generando...' : <><Download size={18} /> Exportar Topología PDF</>}
-            </Button>
-            <Button onClick={() => {
-              if(mediciones.length > 0) {
-                 const csv = generateCSVContent();
-                 setCsvContentGenerated(csv);
-
-                 const ahora = new Date();
-                 const dd = String(ahora.getDate()).padStart(2, '0');
                  const mm = String(ahora.getMonth() + 1).padStart(2, '0');
                  const aa = String(ahora.getFullYear()).slice(2);
                  const nombreArchivo = `${codigoCliente}-${dd}-${mm}-${aa}-mediciones.csv`;

@@ -12,6 +12,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import TopologiaRed from '../components/features/TopologiaRed';
 import { getSession, getUsers, addUser, toggleBlock, deleteUser, crearNotificacion, addAuditLog } from '../utils/authService';
+import { getOrders, updateOrderStatus } from '../utils/databaseService';
 import { getRssiStyle } from '../utils/constants';
 import './PanelAdmin.css';
 
@@ -66,17 +67,14 @@ const PanelAdmin = () => {
     }
   }, [navigate]);
 
-  // ─── Carga de órdenes desde localStorage ───────────────────────────────
-  const cargarOrdenes = () => {
-    const stored = localStorage.getItem('win_orders');
-    if (!stored) return;
-    try {
-      const parsed = JSON.parse(stored);
-      setOrdenes([...parsed].reverse());
-      const cuadrillas = new Set();
-      parsed.forEach(o => { if (o.tecnicoCuadrilla) cuadrillas.add(o.tecnicoCuadrilla); });
-      setListaCuadrillas(Array.from(cuadrillas));
-    } catch { setOrdenes([]); }
+  // ─── Carga de órdenes desde Supabase ───────────────────────────────────
+  const cargarOrdenes = async () => {
+    const data = await getOrders();
+    setOrdenes(data);
+    // Extraer cuadrillas únicas para el filtro
+    const cuadrillas = new Set();
+    data.forEach(o => { if (o.tecnicoCuadrilla) cuadrillas.add(o.tecnicoCuadrilla); });
+    setListaCuadrillas(Array.from(cuadrillas));
   };
 
   // ─── Íconos de estado ──────────────────────────────────────────────────
@@ -90,19 +88,18 @@ const PanelAdmin = () => {
     return map[status] || null;
   };
 
-  // ─── Cambiar estado de una orden (Aprobar) ────────────────────────────
-  const aprobarOrden = (codigoCliente) => {
+  // ─── Aprobar Orden (Supabase) ─────────────────────────────────────────
+  const aprobarOrden = async (codigoCliente) => {
     const orden = ordenes.find(o => o.codigoCliente === codigoCliente);
-    const actualizadas = ordenes.map(o =>
-      o.codigoCliente === codigoCliente ? { ...o, status: 'APROBADO', fechaGestion: Date.now(), gestionadoPor: session.email } : o
-    );
-    localStorage.setItem('win_orders', JSON.stringify([...actualizadas].reverse()));
-    setOrdenes(actualizadas);
+    const result = await updateOrderStatus(codigoCliente, 'APROBADO');
+    if (!result.success) return alert('Error al aprobar: ' + result.error);
 
-    // Notificar al técnico
-    if (orden?.tecnicoEmail) {
-      crearNotificacion(orden.tecnicoEmail, 'APROBADO', codigoCliente);
-    }
+    // Actualizar estado local para reflejar el cambio de inmediato sin recargar
+    setOrdenes(prev => prev.map(o =>
+      o.codigoCliente === codigoCliente ? { ...o, status: 'APROBADO' } : o
+    ));
+
+    if (orden?.tecnicoEmail) crearNotificacion(orden.tecnicoEmail, 'APROBADO', codigoCliente);
     addAuditLog('APROBAR', 'ORDEN', codigoCliente, { gestionadoPor: session.email });
   };
 
@@ -113,19 +110,21 @@ const PanelAdmin = () => {
     setShowRechazoModal(true);
   };
 
-  // ─── Confirmar rechazo con motivo ─────────────────────────────────────
-  const confirmarRechazo = () => {
+  // ─── Confirmar rechazo con motivo (Supabase) ─────────────────────────
+  const confirmarRechazo = async () => {
     if (!motivoRechazo.trim()) return alert('Debes ingresar el motivo del rechazo antes de confirmar.');
     const codigoCliente = ordenParaRechazar.codigoCliente;
-    const actualizadas = ordenes.map(o =>
-      o.codigoCliente === codigoCliente
-        ? { ...o, status: 'RECHAZADO', motivoRechazo: motivoRechazo.trim(), fechaGestion: Date.now(), gestionadoPor: session.email }
-        : o
-    );
-    localStorage.setItem('win_orders', JSON.stringify([...actualizadas].reverse()));
-    setOrdenes(actualizadas);
+    
+    const result = await updateOrderStatus(codigoCliente, 'RECHAZADO');
+    if (!result.success) return alert('Error al rechazar: ' + result.error);
 
-    // Notificar al técnico con el motivo
+    // Actualizar estado local de inmediato
+    setOrdenes(prev => prev.map(o =>
+      o.codigoCliente === codigoCliente
+        ? { ...o, status: 'RECHAZADO', motivoRechazo: motivoRechazo.trim() }
+        : o
+    ));
+
     if (ordenParaRechazar?.tecnicoEmail) {
       crearNotificacion(ordenParaRechazar.tecnicoEmail, 'RECHAZADO', codigoCliente, motivoRechazo.trim());
     }

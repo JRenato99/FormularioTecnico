@@ -4,6 +4,7 @@ import { Header } from '../components/layout/Header';
 import { Card, Input, Button } from '../components/ui';
 import { Search, User, MapPin, List, Clock, CheckCircle, Send, FileText, XCircle, Bell, Edit2 } from 'lucide-react';
 import { getSession, getNotificaciones, marcarNotificacionesLeidas, contarNotificacionesNoLeidas } from '../utils/authService';
+import { getOrders } from '../utils/databaseService';
 import './BuscadorCliente.css'; 
 
 /**
@@ -25,22 +26,22 @@ const BuscadorCliente = () => {
   const [showNotifs, setShowNotifs]     = useState(false);
 
   useEffect(() => {
-    // Cargar historial de órdenes desde localStorage (Caché local)
-    const stored = localStorage.getItem('win_orders');
-    if (stored) {
-      try { setHistorial(JSON.parse(stored)); }
-      catch (e) { console.error('Error leyendo historial', e); }
-    }
-    
     const session = getSession();
-    if (session) {
-      setTecnico(session);
-      // Leer notificaciones del técnico
-      const todasNotifs = getNotificaciones().filter(n => n.tecnicoEmail === session.email);
-      setNotifs(todasNotifs);
-      setNotifsBadge(contarNotificacionesNoLeidas(session.email));
-    }
-  }, []);
+    if (!session) { navigate('/login'); return; }
+    setTecnico(session);
+
+    // Cargar órdenes del técnico desde Supabase
+    getOrders().then(data => {
+      // Filtrar solo las órdenes del técnico autenticado
+      const miasOrdenes = data.filter(o => o.tecnicoEmail === session.email);
+      setHistorial(miasOrdenes);
+    });
+
+    // Notificaciones (aún local hasta Supabase Realtime)
+    const todasNotifs = getNotificaciones().filter(n => n.tecnicoEmail === session.email);
+    setNotifs(todasNotifs);
+    setNotifsBadge(contarNotificacionesNoLeidas(session.email));
+  }, [navigate]);
 
   const handleBuscar = (e) => {
     e.preventDefault();
