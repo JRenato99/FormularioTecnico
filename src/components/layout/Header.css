@@ -108,10 +108,104 @@
 }
 
 .header-logout-btn:hover {
-  background: rgba(255, 61, 0, 0.15);
-  border-color: #FF3D00;
+  background: rgba(255, 61, 0, 0.1);
   color: #FF3D00;
-  transform: scale(1.05);
+  transform: scale(1.1);
+}
+
+/* Notificaciones Dropdown */
+.notif-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 12px);
+  width: 320px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.notif-dropdown-header {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.notif-dropdown-body {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.notif-empty-text {
+  padding: 2rem 1rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.notif-item {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  gap: 0.8rem;
+  transition: background 0.2s;
+}
+
+.notif-item.unread {
+  background: rgba(255, 107, 0, 0.04);
+}
+
+.notif-item:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.notif-status-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.notif-status-icon.success { background: rgba(0, 200, 83, 0.15); color: #00C853; }
+.notif-status-icon.error { background: rgba(255, 61, 0, 0.15); color: #FF3D00; }
+
+.notif-content { flex: 1; }
+.notif-msg { margin: 0; font-size: 0.85rem; color: var(--text-primary); line-height: 1.4; }
+.notif-motivo { margin: 4px 0 0 0; font-size: 0.8rem; color: var(--text-secondary); font-style: italic; }
+.notif-time { margin: 6px 0 0 0; font-size: 0.7rem; color: var(--text-secondary); opacity: 0.6; }
+
+.notif-badge-bubble {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #FF3D00;
+  color: white;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  font-size: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  border: 2px solid var(--app-header-bg, #1a1a1a);
+}
+
+@media (max-width: 480px) {
+  .notif-dropdown {
+    position: fixed;
+    top: 60px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+  }
 }
 
 /* ─── Responsive ──────────────────────────────────────────────────────── */

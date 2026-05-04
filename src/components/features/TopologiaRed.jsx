@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
 import { Plus, Trash2, Router, Wifi, Hash, Edit2, ShieldAlert, Network, AlertTriangle } from 'lucide-react';
+import { useUI } from '../ui/Modal.jsx';
 import { LEYENDA, getRssiStyle } from '../../utils/constants';
 import './Topologia.css';
 
@@ -72,9 +73,9 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   };
 
   const handleAddOnt = () => {
-    if (!newOnt.serialNumber) return alert('Por favor ingresa el Número de Serie (S/N) de la ONT.');
-    if (!newOnt.piso) return alert('Por favor ingresa el Piso de la ONT.');
-    if (newOnt.ambiente === 'Otro' && !newOnt.ambientePersonalizado) return alert('Por favor ingresa el nombre manual del ambiente.');
+    if (!newOnt.serialNumber) return showToast({ type: 'error', title: 'Falta S/N', message: 'Por favor ingresa el Número de Serie (S/N) de la ONT.' });
+    if (!newOnt.piso) return showToast({ type: 'error', title: 'Falta Piso', message: 'Por favor ingresa el Piso de la ONT.' });
+    if (newOnt.ambiente === 'Otro' && !newOnt.ambientePersonalizado) return showToast({ type: 'error', title: 'Falta Ambiente', message: 'Por favor ingresa el nombre manual del ambiente.' });
 
     const ambienteF = newOnt.ambiente === 'Otro' ? newOnt.ambientePersonalizado : newOnt.ambiente;
     if (newOnt.ambiente === 'Otro') onAgregarUbicacion(newOnt.ambientePersonalizado);
@@ -121,7 +122,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     // Validación: no permitir cascada más allá del nivel 2 (ONT → AP → AP max)
     const nivelPadre = getCascadeLevel(newAp.parentId);
     if (nivelPadre >= 2) {
-      return alert('⛔ No se permite una conexión en cascada a 3er nivel.\nEl máximo permitido es: ONT → AP → AP (2 niveles).');
+      return showToast({ type: 'error', title: 'Límite de Cascada', message: 'No se permite una conexión en cascada a 3er nivel. Máximo: ONT → AP → AP.' });
     }
 
     // Alerta de mala práctica: AP padre con conexión inalámbrica
@@ -133,20 +134,20 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
       if (!confirmar) return;
     }
     
-    if (!isAdding3thParty && !newAp.serialNumber) return alert('Debes ingresar el S/N del AP WIN.');
-    if (!newAp.piso) return alert('Debes rellenar el Piso del Access Point.');
-    if (newAp.ambiente === 'Otro' && !newAp.ambientePersonalizado) return alert('Por favor escribe el nombre del ambiente.');
+    if (!isAdding3thParty && !newAp.serialNumber) return showToast({ type: 'error', title: 'Falta S/N', message: 'Debes ingresar el S/N del AP WIN.' });
+    if (!newAp.piso) return showToast({ type: 'error', title: 'Falta Piso', message: 'Debes rellenar el Piso del Access Point.' });
+    if (newAp.ambiente === 'Otro' && !newAp.ambientePersonalizado) return showToast({ type: 'error', title: 'Falta Ambiente', message: 'Por favor escribe el nombre del ambiente.' });
 
     // Validar S/N único entre todos los equipos registrados
     if (!isAdding3thParty) {
       const snDuplicado = equipos.find(e => e.serialNumber && e.serialNumber.toUpperCase() === newAp.serialNumber.toUpperCase());
-      if (snDuplicado) return alert(`El S/N "${newAp.serialNumber}" ya está registrado en la topología (${snDuplicado.nombre}).`);
+      if (snDuplicado) return showToast({ type: 'error', title: 'S/N Duplicado', message: `El S/N "${newAp.serialNumber}" ya está registrado en (${snDuplicado.nombre}).` });
     }
     
     const isWireless = newAp.conexion === 'Inalámbrico';
     
     if (isWireless && !isAdding3thParty && !newAp.rssiBackhaul) {
-      return alert('Si configuras enlace Inalámbrico MESH, requieres escribir la señal RSSI del Backhaul.');
+      return showToast({ type: 'warning', title: 'Falta RSSI', message: 'Si configuras enlace MESH, requieres escribir la señal RSSI del Backhaul.' });
     }
 
     const ambienteF = newAp.ambiente === 'Otro' ? newAp.ambientePersonalizado : newAp.ambiente;
@@ -174,8 +175,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     }]);
 
     if (isAdding3thParty) {
-      // Toast informativo para AP de terceros
-      alert(`ℹ️ AP de Terceros registrado.\nEste equipo es SIN GESTIÓN WIN y solo referencial.\nNo aparecerá en los datos de configuración.`);
+      showToast({ type: 'info', title: 'AP de Terceros', message: 'Equipo registrado como referencial (sin gestión WIN).' });
     }
     
     setShowAddModal(false);
@@ -191,9 +191,9 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   };
 
   const handleUpdateNode = () => {
-    if (!editingNode.esTercero && !editingNode.serialNumber) return alert('Debes ingresar el S/N.');
-    if (!editingNode.piso) return alert('Debes rellenar el Piso.');
-    if (editingNode.ambiente === 'Otro' && !editingNode.ambientePersonalizado) return alert('Escribe el nombre del ambiente especial.');
+    if (!editingNode.esTercero && !editingNode.serialNumber) return showToast({ type: 'error', title: 'Falta S/N', message: 'Debes ingresar el S/N.' });
+    if (!editingNode.piso) return showToast({ type: 'error', title: 'Falta Piso', message: 'Debes rellenar el Piso.' });
+    if (editingNode.ambiente === 'Otro' && !editingNode.ambientePersonalizado) return showToast({ type: 'error', title: 'Falta Ambiente', message: 'Escribe el nombre del ambiente especial.' });
 
     // Validar que el S/N no esté ya en uso por OTRO equipo
     if (!editingNode.esTercero && editingNode.serialNumber) {
@@ -202,19 +202,19 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
              e.serialNumber &&
              e.serialNumber.toUpperCase() === editingNode.serialNumber.toUpperCase()
       );
-      if (snDuplicado) return alert(`El S/N "${editingNode.serialNumber}" ya está en uso por "${snDuplicado.nombre}".`);
+      if (snDuplicado) return showToast({ type: 'error', title: 'S/N Duplicado', message: `El S/N "${editingNode.serialNumber}" ya está en uso por "${snDuplicado.nombre}".` });
     }
     
     const isWireless = editingNode.conexion === 'Inalámbrico';
     if (editingNode.tipo === 'AP' && isWireless && !editingNode.esTercero && !editingNode.rssiBackhaul) {
-      return alert("Requieres escribir la señal RSSI del Backhaul.");
+      return showToast({ type: 'warning', title: 'Falta RSSI', message: "Requieres escribir la señal RSSI del Backhaul." });
     }
 
     const ambienteF = editingNode.ambiente === 'Otro' ? editingNode.ambientePersonalizado : editingNode.ambiente;
     if (editingNode.ambiente === 'Otro') onAgregarUbicacion(editingNode.ambientePersonalizado);
 
     const checkCircular = editingNode.id === editingNode.parentId;
-    if (checkCircular) return alert("Un equipo no puede conectarse a si mismo.");
+    if (checkCircular) return showToast({ type: 'error', title: 'Error de Red', message: "Un equipo no puede conectarse a si mismo." });
 
     setEquipos(equipos.map(e => {
       if (e.id === editingNode.id) {
@@ -322,11 +322,11 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                   </div>
                   
                   {/* Botonera de Control de Nodo */}
-                  <div className={`node-actions ${isExporting ? 'exporting-hide' : ''}`} style={{display: 'flex', gap: '8px', position: 'absolute', right: '12px', top: '12px'}}>
-                    <button className="del-btn" style={{color: 'var(--text-secondary)'}} onClick={() => startEditing(hijo)} title="Editar equipo">
+                  <div className={`node-actions ${isExporting ? 'exporting-hide' : ''}`}>
+                    <button className="node-action-btn btn-edit" onClick={() => startEditing(hijo)} title="Editar equipo">
                       <Edit2 size={16} />
                     </button>
-                    <button className="del-btn" onClick={() => handleRemoveAp(hijo.id)} title="Eliminar equipo">
+                    <button className="node-action-btn btn-delete" onClick={() => handleRemoveAp(hijo.id)} title="Eliminar equipo">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -701,8 +701,8 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                   </div>
                   
                   {/* Botonera Edición de Raíz */}
-                  <div className={`node-actions ${isExporting ? 'exporting-hide' : ''}`} style={{display: 'flex', gap: '8px', position: 'absolute', right: '12px', top: '12px'}}>
-                    <button className="del-btn" style={{color: 'var(--text-secondary)'}} onClick={() => startEditing(ontNode)} title="Editar equipo">
+                  <div className={`node-actions ${isExporting ? 'exporting-hide' : ''}`}>
+                    <button className="node-action-btn btn-edit" onClick={() => startEditing(ontNode)} title="Editar equipo">
                       <Edit2 size={16} />
                     </button>
                   </div>

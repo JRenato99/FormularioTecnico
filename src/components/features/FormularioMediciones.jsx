@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
 import { Plus, Trash2, MapPin, Activity, Wifi, Save, Edit2, ChevronDown, ChevronUp, EyeOff } from 'lucide-react';
 import { getRssiStyle } from '../../utils/constants';
+import { useUI } from '../ui/Modal.jsx';
 import './FormularioMediciones.css';
 
 /**
@@ -28,7 +29,7 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
   const addMedicion = () => {
     // Bloqueador de Borradores Pendientes
     const hasUnsaved = mediciones.some(m => !m.isSaved);
-    if (hasUnsaved) return alert("Por favor, guarda (💾) la medición que estás editando antes de añadir otra nueva.");
+    if (hasUnsaved) return showToast({ type: 'warning', title: 'Medición pendiente', message: 'Por favor, guarda (💾) la medición que estás editando antes de añadir otra nueva.' });
 
     const nuevaMedicion = {
       id: `MED-${Date.now()}-${Math.random().toString(36).substring(7)}`,
@@ -107,7 +108,7 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
    */
   const handleSaveMedicion = (m) => {
     if (!m.piso || (m.ubicacion === 'Otro' && !m.ubicacionPersonalizada)) {
-      return alert("Falta piso o nombre del ambiente");
+      return showToast({ type: 'error', title: 'Campos incompletos', message: 'Falta piso o nombre del ambiente' });
     }
     // Propagación de ubicaciones global por State Uplifting
     if (m.ubicacion === 'Otro') onAgregarUbicacion(m.ubicacionPersonalizada);

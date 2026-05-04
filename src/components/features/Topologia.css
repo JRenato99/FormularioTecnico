@@ -376,35 +376,55 @@
   display: none !important;
 }
 
-.del-btn {
-  position: absolute;
-  top: -10px;
-  right: -10px;
-  background: var(--error);
-  color: white;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+.node-actions {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  gap: 6px;
+  position: absolute;
+  top: 8px;
+  right: 8px;
   opacity: 0;
-  transition: opacity 0.2s, transform 0.2s;
+  transition: opacity 0.2s;
   z-index: 10;
-  border: 2px solid var(--bg-color);
 }
 
-.node-card:hover .del-btn {
+.node-card:hover .node-actions {
   opacity: 1;
 }
 
+.node-action-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.node-action-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.node-action-btn.btn-edit {
+  color: var(--win-blue-light);
+}
+
+.node-action-btn.btn-delete {
+  color: #ff4d4d;
+}
+
+.node-action-btn.btn-delete:hover {
+  background: rgba(255, 77, 77, 0.15);
+}
+
 @media screen and (max-width: 768px) {
-  .del-btn {
+  .node-actions {
     opacity: 1;
   }
 }
 
-.del-btn:hover {
-  transform: scale(1.1);
-  background: #ff4d4d;
-}

@@ -11,6 +11,7 @@ import { jsPDF } from 'jspdf';
 import { Download, CheckCircle, FileSpreadsheet, Save, X, Globe, Tv, Router as RouterIcon, Send } from 'lucide-react';
 import { getRssiStyle, UBICACIONES } from '../utils/constants';
 import { getDraft, saveDraft, saveOrder } from '../utils/databaseService';
+import { useUI } from '../components/ui/Modal.jsx';
 import './FormularioTecnico.css';
 
 /**
@@ -18,9 +19,13 @@ import './FormularioTecnico.css';
  * Contenedor Maestro para la recopilación de datos y guardado en Caché Local.
  */
 const FormularioTecnico = () => {
+  const { showModal, showToast } = useUI();
   const location = useLocation();
   const navigate = useNavigate();
-  const codigoCliente = location.state?.codigo;
+  // En modoEdicion el código puede venir dentro de la ordenPrevia
+  const codigoCliente = location.state?.codigo
+    || location.state?.ordenPrevia?.codigoCliente
+    || null;
 
   const [equipos, setEquipos] = useState([]);
   const [mediciones, setMediciones] = useState([]);
@@ -37,35 +42,46 @@ const FormularioTecnico = () => {
 
   // ==========================================
   // GUARD: Validar que se ingresó un código de cliente
+  // Si hay modoEdicion, el código viene en la ordenPrevia — no redirigir
   // ==========================================
   useEffect(() => {
-    if (!codigoCliente) {
-      alert('Debes ingresar un código de cliente desde el Buscador antes de acceder al formulario.');
-      navigate('/buscar');
+    const esModoEdicion = location.state?.modoEdicion === true;
+    if (!codigoCliente && !esModoEdicion) {
+      showModal({
+        type: 'error',
+        title: 'Código Faltante',
+        message: 'Debes ingresar un código de cliente desde el Buscador antes de acceder al formulario.',
+        onConfirm: () => navigate('/buscar')
+      });
     }
-  }, [codigoCliente, navigate]);
+  }, [codigoCliente, location.state, navigate]);
 
   // ==========================================
   // CACHÉ (AUTOGUARDADO LOCAL)
   // ==========================================
   
-  // 1. Cargar estado inicial desde el Caché si existe
+  // 1. Cargar estado inicial desde el Caché o desde la orden previa (modo edición)
   useEffect(() => {
-    if (!codigoCliente) return; // Guard ya redirigió
-    const sessionStr = localStorage.getItem('win_session');
-    if (!sessionStr) {
-      navigate('/login');
-      return;
-    }
+    const ordenPrevia = location.state?.ordenPrevia;
+    const esModoEdicion = location.state?.modoEdicion === true;
 
-    const draft = getDraft(codigoCliente);
-    if (draft) {
-      if (draft.equipos) setEquipos(draft.equipos);
-      if (draft.mediciones) setMediciones(draft.mediciones);
-      if (draft.winboxes) setWinboxes(draft.winboxes);
-      if (draft.televisores) setTelevisores(draft.televisores);
+    if (esModoEdicion && ordenPrevia) {
+      // MODO EDICIÓN: Cargar datos de la orden rechazada para que el técnico corrija
+      if (ordenPrevia.equipos)     setEquipos(ordenPrevia.equipos);
+      if (ordenPrevia.mediciones)  setMediciones(ordenPrevia.mediciones);
+      if (ordenPrevia.winboxes)    setWinboxes(ordenPrevia.winboxes);
+      if (ordenPrevia.televisores) setTelevisores(ordenPrevia.televisores);
+    } else if (codigoCliente) {
+      // MODO NORMAL: Cargar borrador local si existe
+      const draft = getDraft(codigoCliente);
+      if (draft) {
+        if (draft.equipos)     setEquipos(draft.equipos);
+        if (draft.mediciones)  setMediciones(draft.mediciones);
+        if (draft.winboxes)    setWinboxes(draft.winboxes);
+        if (draft.televisores) setTelevisores(draft.televisores);
+      }
     }
-  }, [codigoCliente, navigate]);
+  }, [codigoCliente, location.state]);
 
   // 2. Autoguardado silencioso con cada cambio (Debounced logic effect)
   useEffect(() => {
@@ -109,11 +125,18 @@ const FormularioTecnico = () => {
         });
         
         pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
-        pdf.save(`Topologia_WIN_${codigoCliente}.pdf`);
+        
+        const ahora = new Date();
+        const dd = String(ahora.getDate()).padStart(2, '0');
+        const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+        const aa = String(ahora.getFullYear()).slice(2);
+
+        pdf.save(`${codigoCliente}-${dd}-${mm}-${aa}-Topologia.pdf`);
+        showToast({ type: 'success', title: 'PDF Generado', message: 'La topología se descargó exitosamente.' });
         
       } catch (error) {
         console.error("Error generando PDF", error);
-        alert('Hubo un error al generar el PDF. Revisa la consola.');
+        showToast({ type: 'error', title: 'Error', message: 'Hubo un error al generar el PDF. Revisa la consola.' });
       } finally {
         setIsExporting(false); 
       }
@@ -235,24 +258,32 @@ const FormularioTecnico = () => {
 
   const handlePreFinalizar = () => {
     // Auditoría Previa al envío
-    if (equipos.length === 0) return alert('Debe configurar al menos la ONT base.');
+    if (equipos.length === 0) return showToast({ type: 'error', title: 'Error', message: 'Debe configurar al menos la ONT base.' });
 
     // Regla: mínimo 3 mediciones guardadas
     const medicionesGuardadas = mediciones.filter(m => m.isSaved);
     if (medicionesGuardadas.length < 3) {
-      return alert(`Debes registrar y guardar un mínimo de 3 mediciones de cobertura.\nActualmente tienes: ${medicionesGuardadas.length} guardada(s).`);
+      return showToast({ 
+        type: 'warning', 
+        title: 'Mediciones insuficientes', 
+        message: `Debes registrar y guardar un mínimo de 3 mediciones de cobertura. Actualmente tienes: ${medicionesGuardadas.length} guardada(s).` 
+      });
     }
 
     for (let i = 0; i < mediciones.length; i++) {
         const m = mediciones[i];
-        if (!m.piso || (m.ubicacion === 'Otro' && !m.ubicacionPersonalizada)) return alert(`Medición #${i + 1} tiene campos de ubicación en blanco.`);
-        if (!m.isSaved) return alert(`Medición #${i + 1} no está guardada. Guárdala (💾) antes de continuar.`);
+        if (!m.piso || (m.ubicacion === 'Otro' && !m.ubicacionPersonalizada)) {
+          return showToast({ type: 'error', title: 'Error', message: `Medición #${i + 1} tiene campos de ubicación en blanco.` });
+        }
+        if (!m.isSaved) {
+          return showToast({ type: 'warning', title: 'Error', message: `Medición #${i + 1} no está guardada. Guárdala (💾) antes de continuar.` });
+        }
     }
     for (let j = 0; j < winboxes.length; j++) {
-        if (!winboxes[j].isSaved) return alert(`Winbox #${j + 1} no está guardado.`);
+        if (!winboxes[j].isSaved) return showToast({ type: 'warning', title: 'Error', message: `Winbox #${j + 1} no está guardado.` });
     }
     for (let k = 0; k < televisores.length; k++) {
-        if (!televisores[k].isSaved) return alert(`WinTV #${k + 1} no está guardado.`);
+        if (!televisores[k].isSaved) return showToast({ type: 'warning', title: 'Error', message: `WinTV #${k + 1} no está guardado.` });
     }
 
     const csvData = generateCSVContent();
@@ -276,10 +307,18 @@ const FormularioTecnico = () => {
     setIsSubmitting(false);
 
     if (result.success) {
-      alert("¡Reporte enviado exitosamente y a la espera de Aprobación!");
-      navigate('/buscar');
+      showModal({
+        type: 'success',
+        title: '¡Éxito!',
+        message: '¡Reporte enviado exitosamente y a la espera de Aprobación!',
+        onConfirm: () => navigate('/buscar')
+      });
     } else {
-      alert("Error al enviar el reporte:\n\n" + result.error);
+      showModal({
+        type: 'error',
+        title: 'Error al enviar',
+        message: result.error
+      });
     }
   };
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
 import { Plus, Trash2, Tv, Save, Edit2, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { getRssiStyle } from '../../utils/constants';
+import { useUI } from '../ui/Modal.jsx';
 
 /**
  * Componente Registrador de Dispositivos WINBOX (TV)
@@ -9,15 +10,16 @@ import { getRssiStyle } from '../../utils/constants';
  * por orden, atándolos a un equipo Padre localizando si usa Wi-Fi o Cable.
  */
 const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, onAgregarUbicacion }) => {
+  const { showToast } = useUI();
   const [allCollapsed, setAllCollapsed] = useState(false);
   const toggleAll = () => setAllCollapsed(!allCollapsed);
 
   const addWinbox = () => {
-    if (winboxes.length >= 4) return alert("Has alcanzado el límite máximo de 4 WINBOX.");
+    if (winboxes.length >= 4) return showToast({ type: 'warning', title: 'Límite alcanzado', message: 'Has alcanzado el límite máximo de 4 WINBOX.' });
     
     // Bloqueador de Borradores Pendientes
     const hasUnsaved = winboxes.some(w => !w.isSaved);
-    if (hasUnsaved) return alert("Por favor, guarda (💾) el Winbox que estás editando antes de añadir otro nuevo.");
+    if (hasUnsaved) return showToast({ type: 'warning', title: 'Winbox pendiente', message: 'Por favor, guarda (💾) el Winbox que estás editando antes de añadir otro nuevo.' });
 
     const nuevo = {
       id: `WB-${Date.now()}-${Math.random().toString(36).substring(7)}`,
@@ -56,16 +58,16 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
   };
 
   const handleSaveWinbox = (w) => {
-    if (!w.serialNumber) return alert("Falta ingresar el número de serie (S/N) del WINBOX.");
-    if (w.ubicacion === 'Otro' && !w.ubicacionPersonalizada) return alert("Falta ingresar nombre de ambiente manual.");
+    if (!w.serialNumber) return showToast({ type: 'error', title: 'S/N Faltante', message: 'Falta ingresar el número de serie (S/N) del WINBOX.' });
+    if (w.ubicacion === 'Otro' && !w.ubicacionPersonalizada) return showToast({ type: 'error', title: 'Ambiente Faltante', message: 'Falta ingresar nombre de ambiente manual.' });
     
     // Condicional Fuerte para Wi-Fi
     if (w.modoConexion === 'Inalámbrico') {
-      if (!w.rssi || !w.velocidad) return alert("Un Winbox inalámbrico exige registrar obligatoriamente Mbps y RSSI.");
+      if (!w.rssi || !w.velocidad) return showToast({ type: 'warning', title: 'Datos incompletos', message: 'Un Winbox inalámbrico exige registrar obligatoriamente Mbps y RSSI.' });
       
       // La banda de 5GHz corta automáticamente si es peor a -60 dBm
       if (w.bandaWifi === '5G' && parseInt(w.rssi) < -60) {
-        return alert("Rechazo de Calidad: El Winbox en conexión 5GHz no debe estar por debajo de -60 dBm para evitar cortes.");
+        return showToast({ type: 'error', title: 'Rechazo de Calidad', message: 'El Winbox en conexión 5GHz no debe estar por debajo de -60 dBm para evitar cortes.' });
       }
       
       // NOTA: En la banda 2.4GHz hay flexibilidad y advertencia pasiva, permitiendo Grabar la medición.

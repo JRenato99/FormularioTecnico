@@ -5,14 +5,16 @@ import { Card, Button, Input, Select } from '../components/ui';
 import { 
   CheckCircle, XCircle, FileText, Send, Clock, User, Filter, 
   AlertCircle, Users, HardDrive, ChevronDown, ChevronUp, 
-  Router as RouterIcon, Globe, Tv, Trash2, ShieldOff, Shield,
-  Plus, Wifi, Download, Key
+  Search, Download, Plus, Edit2, Trash2, MoreHorizontal, 
+  RefreshCw, LogOut, LayoutDashboard, History, Shield,
+  Router as RouterIcon, Globe, Tv, ShieldOff, Wifi, Key
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import TopologiaRed from '../components/features/TopologiaRed';
+import { supabase } from '../utils/supabaseClient';
 import { getSession, getUsers, addUser, toggleBlock, deleteUser, crearNotificacion, addAuditLog, resetUserPassword } from '../utils/authService';
-import { getOrders, updateOrderStatus } from '../utils/databaseService';
+import { getOrders, updateOrderStatus, getAuditLogs } from '../utils/databaseService';
 import { useUI } from '../components/ui/Modal.jsx';
 import { getRssiStyle } from '../utils/constants';
 import './PanelAdmin.css';
@@ -45,6 +47,7 @@ const PanelAdmin = () => {
   
   // ─── Gestión de Usuarios (solo ADMIN) ──────────────────────────────────
   const [usuarios, setUsuarios]         = useState([]);
+  const [auditLogs, setAuditLogs]       = useState([]);
   const [showAddUser, setShowAddUser]   = useState(false);
   const [newUser, setNewUser]           = useState({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '' });
   const [userError, setUserError]       = useState('');
@@ -73,6 +76,22 @@ const PanelAdmin = () => {
     }
   }, [navigate]);
 
+  useEffect(() => {
+    if (activeTab === 'AUDITORIA') fetchAuditLogs();
+
+    // ─── REALTIME SUBSCRIPTION ──────────────────────────────────────────
+    const channel = supabase
+      .channel('admin-realtime')
+      .on('postgres_changes', { event: '*', table: 'win_orders', schema: 'public' }, () => {
+        cargarOrdenes();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeTab]);
+
   // ─── Carga de órdenes desde Supabase ───────────────────────────────────
   const cargarOrdenes = async () => {
     const data = await getOrders();
@@ -83,11 +102,16 @@ const PanelAdmin = () => {
     setListaCuadrillas(Array.from(cuadrillas));
   };
 
+  const fetchAuditLogs = async () => {
+    const logs = await getAuditLogs();
+    setAuditLogs(logs);
+  };
+
   // ─── Íconos de estado ──────────────────────────────────────────────────
   const getStatusIcon = (status) => {
     const map = {
       'EN PROCESO': <Clock size={16} color="#ffa500" />,
-      'ENVIADO':    <Send size={16} color="#1E90FF" />,
+      'PENDIENTE':    <Send size={16} color="#1E90FF" />,
       'APROBADO':   <CheckCircle size={16} color="#00C853" />,
       'RECHAZADO':  <XCircle size={16} color="#FF3D00" />
     };
@@ -120,7 +144,7 @@ const PanelAdmin = () => {
     if (!motivoRechazo.trim()) { showToast({ type: 'warning', title: 'Campo requerido', message: 'Debes ingresar el motivo del rechazo.' }); return; }
     const codigoCliente = ordenParaRechazar.codigoCliente;
 
-    const result = await updateOrderStatus(codigoCliente, 'RECHAZADO');
+    const result = await updateOrderStatus(codigoCliente, 'RECHAZADO', motivoRechazo.trim());
     if (!result.success) { showToast({ type: 'error', title: 'Error', message: result.error }); return; }
 
     setOrdenes(prev => prev.map(o =>
@@ -140,19 +164,35 @@ const PanelAdmin = () => {
 
   // ─── Descarga de CSV y PDF ─────────────────────────────────────────────
   const descargarCSV = (orden) => {
-    if (!orden.csvContent) return alert('No hay contenido CSV para esta orden.');
-    const blob = new Blob(['\uFEFF' + orden.csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Si no tiene csvContent, lo generamos dinámicamente a partir de las mediciones
+    let content = orden.csvContent;
+    if (!content && orden.mediciones) {
+      const header = "Ambiente,Piso,Velocidad 2.4G (Mbps),RSSI 2.4G (dBm),Velocidad 5G (Mbps),RSSI 5G (dBm)\n";
+      const rows = orden.mediciones.map(m => 
+        `${m.ubicacion === 'Otro' ? m.ubicacionPersonalizada : m.ubicacion},${m.piso},${m.velocidad24g},${m.rssi24g},${m.velocidad5g},${m.rssi5g}`
+      ).join("\n");
+      content = header + rows;
+    }
+
+    if (!content) {
+      showToast({ type: 'warning', title: 'Sin datos', message: 'Esta orden no tiene mediciones registradas para exportar.' });
+      return;
+    }
+
+    const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    // Nomenclatura con fecha
+    
     const ahora = new Date(orden.fechaGuardado || Date.now());
     const dd = String(ahora.getDate()).padStart(2, '0');
     const mm = String(ahora.getMonth() + 1).padStart(2, '0');
     const aa = String(ahora.getFullYear()).slice(2);
+    
     link.download = `${orden.codigoCliente}-${dd}-${mm}-${aa}-mediciones.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    showToast({ type: 'success', title: 'CSV Descargado', message: 'El reporte se generó correctamente.' });
   };
 
   const descargarPDFTopologia = async (idx, codigoCliente) => {
@@ -176,10 +216,17 @@ const PanelAdmin = () => {
         });
         
         pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
-        pdf.save(`Topologia_WIN_${codigoCliente}.pdf`);
+        
+        const ahora = new Date();
+        const dd = String(ahora.getDate()).padStart(2, '0');
+        const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+        const aa = String(ahora.getFullYear()).slice(2);
+
+        pdf.save(`${codigoCliente}-${dd}-${mm}-${aa}-Topologia.pdf`);
+        showToast({ type: 'success', title: 'PDF Generado', message: 'La topología se descargó exitosamente.' });
       } catch (error) {
         console.error("Error generando PDF", error);
-        alert('Hubo un error al generar el PDF. Revisa la consola.');
+        showModal({ type: 'error', title: 'Error de exportación', message: 'No se pudo generar el PDF de la topología.' });
       } finally {
         setIsExportingPDF(false); 
       }
@@ -280,6 +327,13 @@ const PanelAdmin = () => {
                 <span className="stat-label">Usuarios</span>
               </div>
             )}
+            <div 
+              className={`stat-item ${activeTab === 'AUDITORIA' ? 'active' : ''}`}
+              onClick={() => setActiveTab('AUDITORIA')}
+            >
+              <History size={22} />
+              <span className="stat-label">Auditoría</span>
+            </div>
           </div>
         </div>
 
@@ -295,7 +349,7 @@ const PanelAdmin = () => {
                 <span className="filter-label">Estado:</span>
                 <select className="ui-select filter-select" value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
                   <option value="TODOS">Todos</option>
-                  <option value="ENVIADO">Enviados (Pendientes)</option>
+                  <option value="PENDIENTE">Enviados (Pendientes)</option>
                   <option value="APROBADO">Aprobados</option>
                   <option value="RECHAZADO">Rechazados</option>
                   <option value="EN PROCESO">En Proceso</option>
@@ -353,15 +407,15 @@ const PanelAdmin = () => {
                         <Button variant="secondary" onClick={() => descargarCSV(orden)} style={{ fontSize: '0.8rem' }}>
                           CSV
                         </Button>
-                        {orden.status === 'ENVIADO' && (
-                          <>
+                        {orden.status === 'PENDIENTE' && (
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <Button onClick={() => aprobarOrden(orden.codigoCliente)} style={{ background: '#00C853', color: '#fff', borderColor: '#00C853', fontSize: '0.8rem' }}>
                               <CheckCircle size={14} /> Aprobar
                             </Button>
                             <Button onClick={() => abrirModalRechazo(orden)} style={{ background: '#FF3D00', color: '#fff', borderColor: '#FF3D00', fontSize: '0.8rem' }}>
                               <XCircle size={14} /> Rechazar
                             </Button>
-                          </>
+                          </div>
                         )}
                         <button 
                           className="expand-btn" 
@@ -533,6 +587,79 @@ const PanelAdmin = () => {
               )}
             </div>
           </>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════
+            PESTAÑA: AUDITORÍA
+            ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'AUDITORIA' && (
+          <div className="animate-fade-in">
+            <Card>
+              <div className="users-header">
+                <h3 className="users-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Shield size={20} color="var(--win-blue-light)" /> 
+                  Registro de Actividad y Auditoría
+                </h3>
+                <Button variant="secondary" onClick={fetchAuditLogs}>
+                  <RefreshCw size={16} /> Refrescar Registro
+                </Button>
+              </div>
+              
+              <div className="detail-table-wrapper" style={{ marginTop: '1.5rem' }}>
+                <table className="detail-table">
+                  <thead>
+                    <tr>
+                      <th>Fecha / Hora</th>
+                      <th>Acción</th>
+                      <th>Entidad</th>
+                      <th>ID Referencia</th>
+                      <th>Detalle de Gestión</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                          <History size={48} style={{ opacity: 0.1, marginBottom: '1rem' }} />
+                          <p>No se han encontrado registros de actividad en el sistema.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      auditLogs.map((log) => (
+                        <tr key={log.id}>
+                          <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', color: 'var(--win-blue-light)' }}>
+                            {new Date(log.created_at).toLocaleString()}
+                          </td>
+                          <td>
+                            <span style={{ 
+                              padding: '3px 10px', 
+                              borderRadius: '12px', 
+                              fontSize: '0.7rem', 
+                              fontWeight: 'bold',
+                              textTransform: 'uppercase',
+                              background: log.accion === 'APROBAR' ? 'rgba(0,200,83,0.1)' : 
+                                         log.accion === 'RECHAZAR' ? 'rgba(255,61,0,0.1)' : 
+                                         log.accion === 'BORRAR' ? 'rgba(255,61,0,0.1)' : 'rgba(255,255,255,0.05)',
+                              color: log.accion === 'APROBAR' ? '#00C853' : 
+                                     log.accion === 'RECHAZAR' ? '#FF3D00' : 
+                                     log.accion === 'BORRAR' ? '#FF3D00' : 'var(--text-primary)'
+                            }}>
+                              {log.accion}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '0.85rem', fontWeight: '500' }}>{log.tipo_elemento}</td>
+                          <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{log.elemento_id}</td>
+                          <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={JSON.stringify(log.detalles)}>
+                            {log.detalles?.motivo || log.detalles?.gestionadoPor || JSON.stringify(log.detalles)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
         )}
 
         {/* ═══════════════════════════════════════════════════════════════

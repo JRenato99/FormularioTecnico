@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
 import { Plus, Trash2, MonitorPlay, Save, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { useUI } from '../ui/Modal.jsx';
 
 /**
  * Módulo: Registro de Smart TVs (Servicio WinTV)
@@ -9,7 +10,7 @@ import { Plus, Trash2, MonitorPlay, Save, Edit2, ChevronDown, ChevronUp, Eye, Ey
  * - Lista colapsable para mejorar la navegación.
  */
 const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgregarUbicacion }) => {
-
+  const { showToast } = useUI();
   const [allCollapsed, setAllCollapsed] = useState(false);
 
   const toggleAll = () => {
@@ -23,7 +24,7 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
   const addTelevisor = () => {
     // Bloqueador de Borradores Pendientes
     const hasUnsaved = televisores.some(t => !t.isSaved);
-    if (hasUnsaved) return alert("Por favor, guarda (💾) la TV que estás editando antes de añadir otro registro.");
+    if (hasUnsaved) return showToast({ type: 'warning', title: 'Registro pendiente', message: 'Por favor, guarda (💾) la TV que estás editando antes de añadir otro registro.' });
 
     const nuevo = {
       id: `TV-${Date.now()}-${Math.random().toString(36).substring(7)}`,
@@ -47,8 +48,8 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
   };
 
   const handleSaveTelevisor = (t) => {
-    if (t.ubicacion === 'Otro' && !t.ubicacionPersonalizada) return alert('Falta ingresar el nombre manual del ambiente.');
-    if (t.marca === 'Otro' && !t.marcaPersonalizada) return alert('Debes detallar la marca de esta TV.');
+    if (t.ubicacion === 'Otro' && !t.ubicacionPersonalizada) return showToast({ type: 'error', title: 'Falta Ubicación', message: 'Falta ingresar el nombre manual del ambiente.' });
+    if (t.marca === 'Otro' && !t.marcaPersonalizada) return showToast({ type: 'error', title: 'Falta Marca', message: 'Debes detallar la marca de esta TV.' });
     // Modelo es OPCIONAL, pero sin el label "(opcional)". Si está vacío se guarda como null.
     const modeloFinal = t.modelo?.trim() || null;
     if (t.ubicacion === 'Otro') onAgregarUbicacion(t.ubicacionPersonalizada);

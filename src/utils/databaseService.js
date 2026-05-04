@@ -152,6 +152,7 @@ export const getOrders = async () => {
     fechaGuardado: new Date(dbOrder.created_at).getTime(),
     fechaGestion: new Date(dbOrder.updated_at).getTime(),
     status: dbOrder.estado,
+    motivoRechazo: dbOrder.motivo_rechazo || '',  // ← viene de Supabase, disponible para todos
     tecnicoEmail: dbOrder.tecnico?.email || 'Desconocido',
     tecnicoCuadrilla: dbOrder.tecnico?.cuadrilla || 'Sin Cuadrilla',
     mediciones: dbOrder.datos_cliente?.mediciones || [],
@@ -161,12 +162,39 @@ export const getOrders = async () => {
   }));
 };
 
-export const updateOrderStatus = async (codigoCliente, nuevoEstado) => {
+// Acepta un motivo opcional para persistir el rechazo en Supabase
+export const updateOrderStatus = async (codigoCliente, nuevoEstado, motivo = '') => {
+  const updatePayload = { 
+    estado: nuevoEstado, 
+    updated_at: new Date().toISOString() 
+  };
+
+  // Si hay motivo de rechazo, lo persistimos directamente en la fila de la orden
+  if (motivo) {
+    updatePayload.motivo_rechazo = motivo;
+  }
+
   const { error } = await supabase
     .from('win_orders')
-    .update({ estado: nuevoEstado, updated_at: new Date().toISOString() })
+    .update(updatePayload)
     .eq('cod_pedido', codigoCliente);
 
   if (error) return { success: false, error: error.message };
   return { success: true };
 };
+
+// ─── AUDITORÍA ─────────────────────────────────────────────────────────
+export const getAuditLogs = async () => {
+  const { data, error } = await supabase
+    .from('win_audit_logs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error('Error obteniendo logs:', error);
+    return [];
+  }
+  return data;
+};
+

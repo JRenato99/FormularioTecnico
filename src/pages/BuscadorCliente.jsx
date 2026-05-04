@@ -3,14 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { Header } from '../components/layout/Header';
 import { Card, Input, Button } from '../components/ui';
 import { Search, User, MapPin, List, Clock, CheckCircle, Send, FileText, XCircle, Bell, Edit2 } from 'lucide-react';
-import { getSession, getNotificaciones, marcarNotificacionesLeidas, contarNotificacionesNoLeidas } from '../utils/authService';
+import { getSession } from '../utils/authService';
+import { supabase } from '../utils/supabaseClient';
 import { getOrders } from '../utils/databaseService';
+import { useUI } from '../components/ui/Modal.jsx';
 import './BuscadorCliente.css'; 
 
 /**
  * Componente principal del módulo de Autenticación/Ruteo de Visita y visor de historial local.
  */
 const BuscadorCliente = () => {
+  const { showToast } = useUI();
   const navigate = useNavigate();
   
   const [codigo, setCodigo] = useState('');
@@ -20,27 +23,32 @@ const BuscadorCliente = () => {
   const [historial, setHistorial] = useState([]);
   const [tecnico, setTecnico] = useState(null);
 
-  // Estado de notificaciones
-  const [notifs, setNotifs]             = useState([]);
-  const [notifsBadge, setNotifsBadge]   = useState(0);
-  const [showNotifs, setShowNotifs]     = useState(false);
-
   useEffect(() => {
     const session = getSession();
     if (!session) { navigate('/login'); return; }
     setTecnico(session);
 
-    // Cargar órdenes del técnico desde Supabase
-    getOrders().then(data => {
-      // Filtrar solo las órdenes del técnico autenticado
-      const miasOrdenes = data.filter(o => o.tecnicoEmail === session.email);
-      setHistorial(miasOrdenes);
-    });
+    const cargarMias = () => {
+      getOrders().then(data => {
+        const miasOrdenes = data.filter(o => o.tecnicoEmail === session.email);
+        setHistorial(miasOrdenes);
+      });
+    };
 
-    // Notificaciones (aún local hasta Supabase Realtime)
-    const todasNotifs = getNotificaciones().filter(n => n.tecnicoEmail === session.email);
-    setNotifs(todasNotifs);
-    setNotifsBadge(contarNotificacionesNoLeidas(session.email));
+    cargarMias();
+
+    // ─── REALTIME SUBSCRIPTION ──────────────────────────────────────────
+    // Suscribirse a cambios en las órdenes para refrescar historial sin F5
+    const channel = supabase
+      .channel('buscador-realtime')
+      .on('postgres_changes', { event: '*', table: 'win_orders', schema: 'public' }, (payload) => {
+        cargarMias();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [navigate]);
 
   const handleBuscar = (e) => {
@@ -60,7 +68,7 @@ const BuscadorCliente = () => {
 
   const handleContinuar = () => {
     if (!tipoVivienda) {
-      alert("Por favor, selecciona si es Casa o Departamento antes de continuar.");
+      showToast({ type: 'warning', title: 'Falta información', message: "Por favor, selecciona si es Casa o Departamento antes de continuar." });
       return;
     }
     // El payload transporta variables al hijo mediante enrutador en memoria
@@ -76,7 +84,7 @@ const BuscadorCliente = () => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'EN PROCESO': return <Clock size={16} color="#ffa500" />;
-      case 'ENVIADO': return <Send size={16} color="#1E90FF" />;
+      case 'PENDIENTE': return <Send size={16} color="#1E90FF" />;
       case 'APROBADO': return <CheckCircle size={16} color="#00C853" />;
       case 'RECHAZADO': return <XCircle size={16} color="#FF3D00" />;
       default: return null;
@@ -98,15 +106,7 @@ const BuscadorCliente = () => {
     });
   };
 
-  /** Muestra/oculta el panel de notificaciones y las marca como leídas */
-  const handleToggleNotifs = () => {
-    if (!showNotifs && tecnico) {
-      marcarNotificacionesLeidas(tecnico.email);
-      setNotifsBadge(0);
-      setNotifs(prev => prev.map(n => ({ ...n, leida: true })));
-    }
-    setShowNotifs(!showNotifs);
-  };
+
 
   return (
     <div>
@@ -120,43 +120,6 @@ const BuscadorCliente = () => {
                 Ingresa el código de pedido (solo números) para iniciar el registro.
               </p>
             </div>
-            {/* Botón de Notificaciones */}
-            {tecnico && (
-              <div style={{ position: 'relative' }}>
-                <button
-                  onClick={handleToggleNotifs}
-                  style={{ position: 'relative', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '0.6rem 1rem', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                >
-                  <Bell size={18} />
-                  {notifsBadge > 0 && (
-                    <span style={{ position: 'absolute', top: '-6px', right: '-6px', background: '#FF3D00', color: 'white', borderRadius: '50%', width: '20px', height: '20px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                      {notifsBadge}
-                    </span>
-                  )}
-                  Notificaciones
-                </button>
-
-                {/* Panel de notificaciones desplegable */}
-                {showNotifs && (
-                  <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', width: '320px', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', zIndex: 1000, overflow: 'hidden' }}>
-                    <div style={{ padding: '0.8rem 1rem', borderBottom: '1px solid var(--border-color)', fontWeight: '600', fontSize: '0.9rem' }}>Notificaciones</div>
-                    {notifs.length === 0 ? (
-                      <p style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center' }}>Sin notificaciones.</p>
-                    ) : (
-                      notifs.slice().reverse().map(n => (
-                        <div key={n.id} style={{ padding: '0.8rem 1rem', borderBottom: '1px solid var(--border-color)', background: n.leida ? 'transparent' : 'rgba(255,107,0,0.06)' }}>
-                          <div style={{ fontSize: '0.85rem', color: n.tipo === 'RECHAZADO' ? '#FF3D00' : '#00C853', fontWeight: '600', marginBottom: '4px' }}>
-                            {n.tipo === 'RECHAZADO' ? '⛔' : '✅'} {n.tipo}: Orden {n.codigoCliente}
-                          </div>
-                          {n.motivo && <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{n.motivo}</p>}
-                          <p style={{ margin: '4px 0 0 0', fontSize: '0.72rem', color: 'var(--text-secondary)', opacity: 0.5 }}>{new Date(n.creadoEn).toLocaleString()}</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
           <Card className="buscador-card">
             <form onSubmit={handleBuscar} className="buscador-form">
@@ -280,11 +243,15 @@ const BuscadorCliente = () => {
                        <span>Winbox: {orden.winboxes ? orden.winboxes.length : 0}</span>
                     </div>
 
-                    {/* Motivo de rechazo visible para el técnico */}
-                    {orden.status === 'RECHAZADO' && orden.motivoRechazo && (
+                    {/* Motivo de rechazo visible para el técnico — viene de Supabase */}
+                    {orden.status === 'RECHAZADO' && (
                       <div style={{ padding: '10px 14px', background: 'rgba(255,61,0,0.08)', border: '1px solid rgba(255,61,0,0.2)', borderRadius: '8px', fontSize: '0.85rem' }}>
                         <strong style={{ color: '#FF3D00' }}>⛔ Motivo del Rechazo:</strong>
-                        <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)' }}>{orden.motivoRechazo}</p>
+                        <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)' }}>
+                          {orden.motivoRechazo
+                            ? orden.motivoRechazo
+                            : 'El supervisor no especificó un motivo. Contacta a tu coordinador.'}
+                        </p>
                       </div>
                     )}
 
