@@ -32,7 +32,7 @@ export const clearDraft = (codigoCliente) => {
 };
 
 // ─── VALIDACIÓN DE HARDWARE GLOBAL ─────────────────────────────────────
-export const checkHardwareUniqueness = async (equipos = [], winboxes = []) => {
+export const checkHardwareUniqueness = async (codigoCliente, equipos = [], winboxes = []) => {
   // Extraer todos los S/N del formulario actual que no estén vacíos
   const sns = [];
   
@@ -51,7 +51,10 @@ export const checkHardwareUniqueness = async (equipos = [], winboxes = []) => {
   if (sns.length === 0) return { ok: true };
 
   // Llamar a la función RPC en Supabase
-  const { data, error } = await supabase.rpc('check_duplicate_sn', { sn_list: sns });
+  const { data, error } = await supabase.rpc('check_duplicate_sn', { 
+    sn_list: sns,
+    exclude_cod_pedido: codigoCliente || null 
+  });
   
   if (error) {
     console.error('Error verificando S/N:', error);
@@ -70,8 +73,8 @@ export const saveOrder = async (codigoCliente, formPayload) => {
   const session = getSession();
   if (!session || !session.id) return { success: false, error: 'No hay sesión activa.' };
 
-  // 1. Verificación global de unicidad de S/N
-  const uniquenessCheck = await checkHardwareUniqueness(formPayload.equipos, formPayload.winboxes);
+  // 1. Verificación global de unicidad de S/N, excluyendo esta misma orden
+  const uniquenessCheck = await checkHardwareUniqueness(codigoCliente, formPayload.equipos, formPayload.winboxes);
   if (!uniquenessCheck.ok) {
     return { success: false, error: uniquenessCheck.error };
   }
