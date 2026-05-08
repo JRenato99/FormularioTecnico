@@ -755,6 +755,51 @@ const PanelAdmin = () => {
           </div>
         )}
 
+        {/* ═══════════════════════════════════════════════════════════════
+            PESTAÑA: AUDITORÍA
+            ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'AUDITORIA' && (
+          <div className="tab-pane animate-fade-in">
+            <Card>
+              <div className="admin-header-row">
+                <h2 className="admin-section-title"><History size={20} color="var(--win-blue)" /> Historial de Auditoría</h2>
+                <Button onClick={fetchAuditLogs} variant="secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
+                  Actualizar
+                </Button>
+              </div>
+              <div className="detail-table-wrapper" style={{ marginTop: '1.5rem' }}>
+                <table className="detail-table users-table">
+                  <thead>
+                    <tr>
+                      <th>Fecha</th><th>Acción</th><th>Recurso Afectado</th><th>Detalle Técnico</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.length === 0 ? (
+                      <tr><td colSpan="4" style={{ textAlign: 'center', padding: '2rem' }}>No hay registros de auditoría.</td></tr>
+                    ) : (
+                      auditLogs.map((log) => (
+                        <tr key={log.id}>
+                          <td style={{ whiteSpace: 'nowrap' }}>{new Date(log.created_at).toLocaleString()}</td>
+                          <td>
+                            <span className="header-rol-badge" style={{ color: 'var(--win-blue)', borderColor: 'var(--win-blue)' }}>
+                              {log.accion}
+                            </span>
+                          </td>
+                          <td>{log.entidad_afectada} <strong style={{ color: 'var(--text-primary)' }}>{log.entidad_id}</strong></td>
+                          <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {log.descripcion || '—'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+        )}
+
       </div>
     </div>
 

@@ -84,10 +84,10 @@ FOR INSERT WITH CHECK (
   (SELECT role FROM public.win_users WHERE id = auth.uid()) = 'TECNICO'
 );
 
--- Actualización: TECNICO puede editar si está PENDIENTE. SUPERVISOR o ADMIN pueden cambiar estado.
+-- Actualización: TECNICO puede editar si está PENDIENTE o RECHAZADO. SUPERVISOR o ADMIN pueden cambiar estado.
 CREATE POLICY "Actualizacion de ordenes" ON public.win_orders 
 FOR UPDATE USING (
-  ((SELECT role FROM public.win_users WHERE id = auth.uid()) = 'TECNICO' AND estado = 'PENDIENTE')
+  ((SELECT role FROM public.win_users WHERE id = auth.uid()) = 'TECNICO' AND estado IN ('PENDIENTE', 'RECHAZADO'))
   OR ((SELECT role FROM public.win_users WHERE id = auth.uid()) = 'SUPERVISOR')
   OR ((SELECT role FROM public.win_users WHERE id = auth.uid()) = 'ADMINISTRADOR')
 );

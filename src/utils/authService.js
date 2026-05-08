@@ -7,7 +7,7 @@ const KEY_NOTIFS   = 'win_notificaciones';
 export const isValidEmail = (email) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).toLowerCase());
 
-export const validatePassword = (password) => {
+const validatePassword = (password) => {
   if (!password || password.length < 8) return { ok: false, error: 'La contraseña debe tener al menos 8 caracteres.' };
   if (!/[A-Z]/.test(password)) return { ok: false, error: 'Debe incluir al menos una letra MAYÚSCULA.' };
   if (!/[a-z]/.test(password)) return { ok: false, error: 'Debe incluir al menos una letra minúscula.' };
@@ -17,11 +17,7 @@ export const validatePassword = (password) => {
 };
 
 // ─── Audit Log (Supabase) ──────────────────────────────────────────────────────
-export const getAuditLog = async () => {
-  const { data, error } = await supabase.from('win_audit_logs').select('*').order('created_at', { ascending: false }).limit(500);
-  if (error) { console.error('Error fetching audit logs:', error); return []; }
-  return data;
-};
+// getAuditLog eliminado por redundancia con databaseService.js
 
 export const addAuditLog = async (accion, recursoTipo = '', recursoId = '', detalle = {}) => {
   const session = getSession();

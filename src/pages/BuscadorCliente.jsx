@@ -71,6 +71,28 @@ const BuscadorCliente = () => {
       showToast({ type: 'warning', title: 'Falta información', message: "Por favor, selecciona si es Casa o Departamento antes de continuar." });
       return;
     }
+
+    // Validación de integridad: Verificar si ya existe en el historial del técnico
+    const ordenExistente = historial.find(o => o.codigoCliente === cliente.codigo);
+    
+    if (ordenExistente) {
+      if (ordenExistente.status === 'APROBADO') {
+        showToast({ type: 'error', title: 'Orden Bloqueada', message: 'Esta orden ya fue APROBADA por el supervisor. No se puede modificar.' });
+        return;
+      }
+      
+      if (ordenExistente.status === 'PENDIENTE') {
+        showToast({ type: 'warning', title: 'Aviso de Sobrescritura', message: 'Esta orden está en revisión. Al continuar, podrías sobrescribir los datos enviados.' });
+        // Opcional: podríamos cargar los datos aquí, pero como es PENDIENTE, normalmente el técnico no debería editarla.
+      }
+      
+      if (ordenExistente.status === 'RECHAZADO') {
+        // Redirigir automáticamente usando el flujo de edición correcto para no perder la ordenPrevia
+        handleEditarRechazada(ordenExistente);
+        return;
+      }
+    }
+
     // El payload transporta variables al hijo mediante enrutador en memoria
     navigate('/formulario', { state: { codigo: cliente.codigo, tipoVivienda } });
   };

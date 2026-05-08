@@ -23,7 +23,7 @@ export const getDraft = (codigoCliente) => {
   }
 };
 
-export const clearDraft = (codigoCliente) => {
+const clearDraft = (codigoCliente) => {
   try {
     const drafts = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}');
     delete drafts[codigoCliente];
@@ -32,7 +32,7 @@ export const clearDraft = (codigoCliente) => {
 };
 
 // ─── VALIDACIÓN DE HARDWARE GLOBAL ─────────────────────────────────────
-export const checkHardwareUniqueness = async (codigoCliente, equipos = [], winboxes = []) => {
+const checkHardwareUniqueness = async (codigoCliente, equipos = [], winboxes = []) => {
   // Extraer todos los S/N del formulario actual que no estén vacíos
   const sns = [];
   
@@ -99,7 +99,7 @@ export const saveOrder = async (codigoCliente, formPayload) => {
     .eq('cod_pedido', codigoCliente)
     .single();
 
-  if (existing && existing.estado !== 'PENDIENTE') {
+  if (existing && existing.estado !== 'PENDIENTE' && existing.estado !== 'RECHAZADO') {
     return { success: false, error: `Esta orden ya fue evaluada (Estado: ${existing.estado}). No se puede modificar.` };
   }
 
@@ -107,6 +107,7 @@ export const saveOrder = async (codigoCliente, formPayload) => {
   
   if (existing) {
     const res = await supabase.from('win_orders').update({
+      estado: 'PENDIENTE', // Reseteamos a PENDIENTE para nueva revisión
       hardware_data: hardwareData,
       datos_cliente: datosCliente,
       updated_at: new Date().toISOString()
