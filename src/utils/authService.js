@@ -22,6 +22,7 @@ const validatePassword = (password) => {
 export const addAuditLog = async (accion, recursoTipo = '', recursoId = '', detalle = {}) => {
   const session = getSession();
   supabase.from('win_audit_logs').insert([{
+    actor_id: session?.id || null,
     accion,
     entidad_afectada: recursoTipo,
     entidad_id: recursoId,
@@ -199,11 +200,15 @@ export const addUser = async (data) => {
  * NOTA: Supabase Admin API requiere la service_role key; usamos el workaround de
  * marcar must_change_password=TRUE y enviar email de reset.
  */
-export const resetUserPassword = async (userEmail, newTempPassword) => {
-  const pwdCheck = validatePassword(newTempPassword);
-  if (!pwdCheck.ok) return { success: false, error: pwdCheck.error };
+export const resetUserPassword = async (userEmail) => {
+  // Enviar email de reseteo de contraseña via flujo oficial de Supabase
+  const { error: resetError } = await supabase.auth.resetPasswordForEmail(userEmail, {
+    redirectTo: window.location.origin + '/#/login'
+  });
 
-  // Marcar must_change_password en win_users
+  if (resetError) return { success: false, error: 'Error al enviar email de reseteo: ' + resetError.message };
+
+  // Marcar must_change_password para que al ingresar se fuerce el cambio
   const { error: dbError } = await supabase
     .from('win_users')
     .update({ must_change_password: true })
@@ -212,7 +217,7 @@ export const resetUserPassword = async (userEmail, newTempPassword) => {
   if (dbError) return { success: false, error: 'Error actualizando perfil: ' + dbError.message };
 
   await addAuditLog('RESET_CONTRASENA', 'USUARIO', userEmail);
-  return { success: true };
+  return { success: true, message: `Se envió un email de restablecimiento a ${userEmail}.` };
 };
 
 export const toggleBlock = async (email) => {

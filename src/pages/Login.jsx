@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Input, Button, Select } from '../components/ui';
 import { Wifi, ArrowRight, ShieldCheck, AlertCircle, Eye, EyeOff, Key, CheckCircle } from 'lucide-react';
-import { initDefaultUsers, login, getSession, isValidEmail, changePassword } from '../utils/authService';
+import { login, getSession, isValidEmail, changePassword } from '../utils/authService';
 import { useUI } from '../components/ui/Modal.jsx';
 import './Login.css';
 
@@ -54,7 +54,6 @@ const Login = () => {
 
   // ─── Inicialización ───────────────────────────────────────────────────
   useEffect(() => {
-    initDefaultUsers();
     generateCaptcha();
   }, []);
 
@@ -85,19 +84,22 @@ const Login = () => {
     e.preventDefault();
     setErrorMsg('');
 
+    // Validación 1: Campos obligatorios presentes
+    if (!email || !password) {
+      setErrorMsg('Completa tu correo y contraseña.');
+      return;
+    }
+
+    // Validación 2: Formato de email correcto
     if (!isValidEmail(email)) {
       setEmailError('Ingresa un correo electrónico válido.');
       return;
     }
 
+    // Validación 3: Captcha anti-bot
     if (parseInt(captchaAnswer) !== (captchaNum1 + captchaNum2)) {
       setErrorMsg('Error en el desafío de seguridad. Inténtalo de nuevo.');
       generateCaptcha();
-      return;
-    }
-
-    if (!email || !password) {
-      setErrorMsg('Completa tu correo y contraseña.');
       return;
     }
 

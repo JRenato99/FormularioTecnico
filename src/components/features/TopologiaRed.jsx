@@ -10,6 +10,7 @@ import './Topologia.css';
  */
 const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAgregarUbicacion }) => {
 
+  const { showToast } = useUI();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddOnt, setShowAddOnt] = useState(false);
   const [editingNode, setEditingNode] = useState(null);

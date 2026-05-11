@@ -83,15 +83,15 @@ const FormularioTecnico = () => {
     }
   }, [codigoCliente, location.state]);
 
-  // 2. Autoguardado silencioso con cada cambio (Debounced logic effect)
+  // 2. Autoguardado silencioso con debounce de 800ms
   useEffect(() => {
-    const saveToCache = () => {
+    if (equipos.length === 0 && mediciones.length === 0) return;
+    
+    const timer = setTimeout(() => {
       saveDraft(codigoCliente, { equipos, mediciones, winboxes, televisores });
-    };
+    }, 800);
 
-    if (equipos.length > 0 || mediciones.length > 0) {
-      saveToCache();
-    }
+    return () => clearTimeout(timer);
   }, [equipos, mediciones, winboxes, televisores, codigoCliente]);
 
 
@@ -323,13 +323,15 @@ const FormularioTecnico = () => {
   };
 
   const doDescargarCSV = () => {
+    // Generar el CSV al vuelo para evitar descargar un archivo vacío
+    const freshCSV = generateCSVContent();
     const ahora = new Date();
     const dd = String(ahora.getDate()).padStart(2, '0');
     const mm = String(ahora.getMonth() + 1).padStart(2, '0');
     const aa = String(ahora.getFullYear()).slice(2);
     const nombreArchivo = `${codigoCliente}-${dd}-${mm}-${aa}-mediciones.csv`;
 
-    const blob = new Blob(['\uFEFF' + csvContentGenerated], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + freshCSV], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = nombreArchivo;

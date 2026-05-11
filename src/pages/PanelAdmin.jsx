@@ -274,13 +274,13 @@ const PanelAdmin = () => {
   };
 
   const handleResetPassword = async () => {
-    const result = await resetUserPassword(resetTarget, resetPwd);
+    const result = await resetUserPassword(resetTarget);
     if (!result.success) { showToast({ type: 'error', title: 'Error', message: result.error }); return; }
     setShowResetModal(false);
     showModal({
       type: 'success',
-      title: 'Contraseña Restablecida',
-      message: `La cuenta de ${resetTarget} fue marcada para crear nueva contraseña en su próximo ingreso.`
+      title: 'Email Enviado',
+      message: result.message || `Se envió un enlace de restablecimiento a ${resetTarget}. El usuario deberá revisar su correo.`
     });
   };
 
@@ -589,78 +589,8 @@ const PanelAdmin = () => {
           </>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════
-            PESTAÑA: AUDITORÍA
-            ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'AUDITORIA' && (
-          <div className="animate-fade-in">
-            <Card>
-              <div className="users-header">
-                <h3 className="users-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Shield size={20} color="var(--win-blue-light)" /> 
-                  Registro de Actividad y Auditoría
-                </h3>
-                <Button variant="secondary" onClick={fetchAuditLogs}>
-                  <RefreshCw size={16} /> Refrescar Registro
-                </Button>
-              </div>
-              
-              <div className="detail-table-wrapper" style={{ marginTop: '1.5rem' }}>
-                <table className="detail-table">
-                  <thead>
-                    <tr>
-                      <th>Fecha / Hora</th>
-                      <th>Acción</th>
-                      <th>Entidad</th>
-                      <th>ID Referencia</th>
-                      <th>Detalle de Gestión</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {auditLogs.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-                          <History size={48} style={{ opacity: 0.1, marginBottom: '1rem' }} />
-                          <p>No se han encontrado registros de actividad en el sistema.</p>
-                        </td>
-                      </tr>
-                    ) : (
-                      auditLogs.map((log) => (
-                        <tr key={log.id}>
-                          <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', color: 'var(--win-blue-light)' }}>
-                            {new Date(log.created_at).toLocaleString()}
-                          </td>
-                          <td>
-                            <span style={{ 
-                              padding: '3px 10px', 
-                              borderRadius: '12px', 
-                              fontSize: '0.7rem', 
-                              fontWeight: 'bold',
-                              textTransform: 'uppercase',
-                              background: log.accion === 'APROBAR' ? 'rgba(0,200,83,0.1)' : 
-                                         log.accion === 'RECHAZAR' ? 'rgba(255,61,0,0.1)' : 
-                                         log.accion === 'BORRAR' ? 'rgba(255,61,0,0.1)' : 'rgba(255,255,255,0.05)',
-                              color: log.accion === 'APROBAR' ? '#00C853' : 
-                                     log.accion === 'RECHAZAR' ? '#FF3D00' : 
-                                     log.accion === 'BORRAR' ? '#FF3D00' : 'var(--text-primary)'
-                            }}>
-                              {log.accion}
-                            </span>
-                          </td>
-                          <td style={{ fontSize: '0.85rem', fontWeight: '500' }}>{log.tipo_elemento}</td>
-                          <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{log.elemento_id}</td>
-                          <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={JSON.stringify(log.detalles)}>
-                            {log.detalles?.motivo || log.detalles?.gestionadoPor || JSON.stringify(log.detalles)}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          </div>
-        )}
+
+
 
         {/* ═══════════════════════════════════════════════════════════════
             PESTAÑA: USUARIOS (solo ADMINISTRADOR)
@@ -712,7 +642,7 @@ const PanelAdmin = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {usuarios.map((u, i) => {
+                    {usuarios.map((u) => {
                       const rolColors = { ADMINISTRADOR: '#FF3D00', SUPERVISOR: '#1E90FF', TECNICO: '#00C853' };
                       const isSelf = session?.email === u.email;
                       return (
@@ -848,19 +778,12 @@ const PanelAdmin = () => {
             <button onClick={() => setShowResetModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.4rem' }}>×</button>
           </div>
           <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Asigna una <strong style={{ color: 'var(--text-primary)' }}>contraseña temporal</strong> para <strong style={{ color: '#1E90FF' }}>{resetTarget}</strong>. El usuario deberá cambiarla en su próximo ingreso.
+            Se enviará un <strong style={{ color: 'var(--text-primary)' }}>enlace de restablecimiento</strong> al correo de <strong style={{ color: '#1E90FF' }}>{resetTarget}</strong>. El usuario recibirá un email para crear su nueva contraseña de forma segura.
           </p>
-          <Input
-            label="Nueva Contraseña Temporal (*)"
-            type="password"
-            placeholder="Mín. 8 chars, mayúscula, número y símbolo"
-            value={resetPwd}
-            onChange={e => setResetPwd(e.target.value)}
-          />
           <div style={{ display: 'flex', gap: '1rem' }}>
             <Button variant="secondary" style={{ flex: 1 }} onClick={() => setShowResetModal(false)}>Cancelar</Button>
             <Button style={{ flex: 1, background: '#1E90FF', borderColor: '#1E90FF' }} onClick={handleResetPassword}>
-              <Key size={16} /> Confirmar Reset
+              <Key size={16} /> Enviar Email de Reset
             </Button>
           </div>
         </Card>
