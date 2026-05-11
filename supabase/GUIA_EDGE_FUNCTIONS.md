@@ -1,79 +1,141 @@
-# Guía: Configurar Edge Function para Gestión Segura de Usuarios
-
-## Contexto
-Actualmente, `addUser` y `deleteUser` usan la `anon_key` desde el frontend, lo cual expone operaciones críticas. La solución es mover estas operaciones a una **Edge Function** que use la `SERVICE_ROLE_KEY` de forma segura en el servidor.
+# Guía Completa: Configuración de Supabase (Redirect URLs + Edge Functions)
 
 ---
 
-## Paso 1: Instalar Supabase CLI (si no lo tienes)
-```bash
+## PARTE A: Configurar Redirect URL para Reset de Contraseña
+
+### ¿Para qué sirve esto?
+Cuando un Admin le da "Restablecer Contraseña" a un usuario, Supabase envía un email con un enlace. 
+Ese enlace necesita saber **a dónde redirigir** al usuario después de hacer clic. 
+Sin configurar esto, el enlace del email lleva a una página genérica de Supabase que no existe.
+
+### Pasos:
+
+1. **Ingresa al Dashboard de Supabase** → https://supabase.com/dashboard
+2. **Selecciona tu proyecto** (FormularioTecnico)
+3. **En el menú lateral izquierdo**, haz clic en **Authentication** (icono de candado)
+4. **En el menú superior de Authentication**, haz clic en **URL Configuration**
+5. Verás dos secciones:
+   - **Site URL**: Debe tener la URL de tu app en Vercel. Ejemplo: `https://formulario-tecnico.vercel.app`
+   - **Redirect URLs**: Aquí añades las URLs permitidas.
+
+6. **Haz clic en "Add URL"** y agrega estas dos URLs:
+
+```
+https://formulario-tecnico.vercel.app/#/login
+http://localhost:5173/#/login
+```
+
+> Nota: Reemplaza `formulario-tecnico.vercel.app` con tu dominio real de Vercel.
+> La segunda URL (`localhost`) es para que funcione en desarrollo local.
+
+7. **Haz clic en "Save"** al final de la página.
+
+### ¿Cómo verifico que funciona?
+- Entra al Panel Admin → Usuarios → haz clic en el icono de llave (🔑) de un usuario.
+- Confirma el envío del email de reset.
+- Revisa la bandeja de entrada del correo de ese usuario. Debería llegar un email con un enlace que redirige a tu app.
+
+---
+
+## PARTE B: Desplegar la Edge Function
+
+### ¿Qué archivos ya tienes listos?
+Yo ya creé estos archivos en tu proyecto:
+- `supabase/functions/manager-user/index.ts` → La función principal (corregida)
+- `supabase/functions/_shared/cors.ts` → Los encabezados CORS compartidos
+
+**No necesitas tocar estos archivos.** Solo necesitas desplegarlos a Supabase.
+
+---
+
+### Paso 1: Verificar que tienes Supabase CLI instalado
+Abre una terminal (PowerShell) y ejecuta:
+```powershell
+supabase --version
+```
+Si aparece un número de versión (ej. `1.145.0`), ya lo tienes. Si no, instálalo:
+```powershell
+npx supabase --version
+```
+O instálalo globalmente:
+```powershell
 npm install -g supabase
 ```
 
-## Paso 2: Inicializar Supabase en el proyecto
-```bash
-cd c:\Users\jsolanos\OneDrive - WI-NET TELECOM\Proyectos Varios\FormularioTecnico
-supabase init
-supabase login
-supabase link --project-ref TU_PROJECT_REF
+### Paso 2: Vincular tu proyecto local con Supabase
+
+Primero necesitas tu **Project Reference ID**:
+1. Ve a **Supabase Dashboard** → tu proyecto → **Settings** (⚙️ en el menú lateral)
+2. En la pestaña **General**, copia el valor de **Reference ID** (es un string como `abcdefghijklmnop`)
+
+Luego ejecuta en la terminal:
+```powershell
+cd "c:\Users\jsolanos\OneDrive - WI-NET TELECOM\Proyectos Varios\FormularioTecnico"
+npx supabase login
+npx supabase link --project-ref TU_REFERENCE_ID
 ```
-> Tu `PROJECT_REF` lo encuentras en Supabase → Settings → General → Reference ID.
+> Reemplaza `TU_REFERENCE_ID` con el valor que copiaste.
+> Si te pide la **database password**, es la contraseña que elegiste al crear el proyecto de Supabase.
 
-## Paso 3: Crear la Edge Function
-```bash
-supabase functions new manage-user
-```
-Esto crea `supabase/functions/manage-user/index.ts`.
+### Paso 3: Configurar la SERVICE_ROLE_KEY como secreto
 
-## Paso 4: Reemplazar el contenido de `index.ts`
-Copia y pega el código que te proporcionó la IA de Supabase (el que pegaste en tu comentario). Ese código es correcto y hace exactamente lo que necesitamos:
+La `SERVICE_ROLE_KEY` es una clave secreta de tu proyecto. Para obtenerla:
+1. Ve a **Supabase Dashboard** → tu proyecto → **Settings** → **API**
+2. En la sección "Project API keys", copia el valor de **service_role** (⚠️ dice "This key has the ability to bypass RLS")
 
-1. Verifica que el caller tenga un JWT válido de Admin.
-2. Para `action: 'create'` → Usa `supabase.auth.admin.createUser()` con la `SERVICE_ROLE_KEY`.
-3. Para `action: 'delete'` → Busca al usuario por email y lo elimina de `auth.users`.
-
-## Paso 5: Crear el archivo de CORS compartido
-Crea el archivo `supabase/functions/_shared/cors.ts`:
-```ts
-export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+Luego ejecuta:
+```powershell
+npx supabase secrets set SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key_aqui
 ```
 
-## Paso 6: Configurar la `SERVICE_ROLE_KEY` como secret
-```bash
-supabase secrets set SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key_aqui
-```
-> La `SERVICE_ROLE_KEY` la encuentras en Supabase → Settings → API → `service_role` (⚠️ NUNCA la pongas en el frontend ni en `.env` del proyecto React).
-
-## Paso 7: Desplegar la función
-```bash
-supabase functions deploy manage-user --no-verify-jwt
-```
-> Usamos `--no-verify-jwt` porque la verificación la hacemos manualmente dentro de la función.
-
-## Paso 8: Probar la función
-```bash
-curl -X POST https://TU_PROJECT_REF.supabase.co/functions/v1/manage-user \
-  -H "Authorization: Bearer TU_ADMIN_JWT" \
-  -H "Content-Type: application/json" \
-  -d '{"action":"create","email":"test@win.pe","password":"Test1234!","role":"TECNICO"}'
+### Paso 4: Desplegar la función
+```powershell
+npx supabase functions deploy manager-user --no-verify-jwt
 ```
 
-## Paso 9: Actualizar el Frontend
-Una vez desplegada, se modifica `authService.js` para llamar a la Edge Function en lugar de `supabase.auth.signUp()`:
-```js
-const { data, error } = await supabase.functions.invoke('manage-user', {
-  body: { action: 'create', email, password, role }
-});
+Si el deploy es exitoso, verás un mensaje como:
 ```
+Edge Function 'manager-user' is deployed
+```
+
+### Paso 5: Verificar que la función está activa
+1. Ve a **Supabase Dashboard** → **Edge Functions** (en el menú lateral)
+2. Deberías ver `manager-user` en la lista con estado **Active** ✅
 
 ---
 
-## Resumen de Seguridad
-| Antes | Después |
-|-------|---------|
-| `anon_key` crea usuarios desde el navegador | `SERVICE_ROLE_KEY` crea usuarios en el servidor |
-| `deleteUser` deja huérfanos en `auth.users` | Edge Function elimina de `auth.users` Y `win_users` |
-| Cualquiera con la URL puede registrar usuarios | Solo JWTs de ADMINISTRADOR pueden invocar la función |
+## PARTE C: Lo que yo haré después
+
+Una vez que completes los pasos anteriores y me confirmes que:
+1. ✅ La redirect URL está configurada
+2. ✅ La Edge Function está desplegada y activa
+
+Yo me encargo de:
+- Modificar `authService.js` para que `addUser` y `deleteUser` llamen a la Edge Function en lugar de usar `supabase.auth.signUp()` directamente
+- Hacer las pruebas y el push al repositorio
+
+---
+
+## Resumen visual
+
+```
+┌─────────────────────────────────────────────────┐
+│ ANTES (Inseguro)                                │
+│                                                 │
+│ Frontend ──(anon_key)──► supabase.auth.signUp() │
+│ ⚠️ Cualquiera puede crear usuarios              │
+└─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│ DESPUÉS (Seguro)                                │
+│                                                 │
+│ Frontend ──(JWT Admin)──► Edge Function          │
+│                              │                  │
+│                    (SERVICE_ROLE_KEY)            │
+│                              │                  │
+│                              ▼                  │
+│                   supabase.auth.admin.createUser │
+│ ✅ Solo Admins autenticados pueden crear         │
+└─────────────────────────────────────────────────┘
+```

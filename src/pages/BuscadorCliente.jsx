@@ -51,19 +51,55 @@ const BuscadorCliente = () => {
     };
   }, [navigate]);
 
-  const handleBuscar = (e) => {
+  const handleBuscar = async (e) => {
     e.preventDefault();
     if (!codigo) return;
     setLoading(true);
-    setTimeout(() => {
-      setCliente({
-        codigo: codigo,
-        plan: '1000 Mbps - Fibra',
-        direccion: 'Av. Javier Prado Este 1234, San Borja, Lima',
-        tipo: 'Instalación Nueva'
-      });
+    
+    try {
+      // Validar si el código de pedido ya existe en la base de datos general
+      const { data, error } = await supabase
+        .from('win_orders')
+        .select('codigoCliente, tecnicoEmail, status')
+        .eq('codigoCliente', codigo);
+        
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        const ordenExistente = data[0];
+        
+        // Si la orden ya existe y es del mismo técnico, le permitimos continuar (handleContinuar validará si puede editarla)
+        if (ordenExistente.tecnicoEmail === tecnico?.email) {
+            setCliente({
+              codigo: codigo,
+              plan: 'Servicio Fibra WIN (Orden Existente)',
+              direccion: 'Dirección confirmada en registro',
+              tipo: `Estado: ${ordenExistente.status}`
+            });
+        } else {
+            // La orden existe y pertenece a otro técnico
+            showToast({ 
+              type: 'error', 
+              title: 'Código Duplicado', 
+              message: `El código ${codigo} ya fue registrado por otro técnico.` 
+            });
+            setCliente(null);
+        }
+      } else {
+        // La orden NO existe, puede iniciar un registro nuevo
+        setCliente({
+          codigo: codigo,
+          plan: 'Servicio Fibra WIN (Nuevo Registro)',
+          direccion: 'Dirección por confirmar en visita',
+          tipo: 'Instalación Nueva'
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      showToast({ type: 'error', title: 'Error de red', message: 'No se pudo verificar el código de pedido.' });
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
   const handleContinuar = () => {

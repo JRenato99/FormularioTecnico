@@ -171,15 +171,17 @@ export const addUser = async (data) => {
     ? null
     : (data.cuadrilla || null);
 
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email: data.email,
-    password: data.password
+  const { data: edgeData, error: edgeError } = await supabase.functions.invoke('manager-user', {
+    body: { action: 'create', email: data.email, password: data.password, role: data.role }
   });
-  if (authError) return { success: false, error: authError.message };
-  if (!authData.user) return { success: false, error: 'Error desconocido al crear usuario.' };
+
+  if (edgeError) return { success: false, error: 'Error del servidor: ' + edgeError.message };
+  if (edgeData?.error) return { success: false, error: edgeData.error };
+
+  const newUserId = edgeData.user.id;
 
   const { error: dbError } = await supabase.from('win_users').insert([{
-    id: authData.user.id,
+    id: newUserId,
     email: data.email,
     nombre: data.nombre || data.email.split('@')[0],
     role: data.role,
@@ -188,7 +190,11 @@ export const addUser = async (data) => {
     must_change_password: true   // ← Siempre TRUE al crear
   }]);
 
-  if (dbError) return { success: false, error: 'Error al crear perfil: ' + dbError.message };
+  if (dbError) {
+    // Si falla la inserción del perfil, intentamos borrar el usuario creado en Auth para no dejar huérfanos
+    await supabase.functions.invoke('manager-user', { body: { action: 'delete', email: data.email } });
+    return { success: false, error: 'Error al crear perfil: ' + dbError.message };
+  }
 
   await addAuditLog('CREAR_USUARIO', 'USUARIO', data.email, { rol: data.role, cuadrilla: cuadrillaFinal });
   return { success: true };
@@ -249,8 +255,21 @@ export const deleteUser = async (email) => {
       return { success: false, error: 'No puedes eliminar al único Administrador del sistema.' };
     }
   }
+
+  // Eliminar el usuario de Supabase Auth usando la Edge Function
+  const { data: edgeData, error: edgeError } = await supabase.functions.invoke('manager-user', {
+    body: { action: 'delete', email: email }
+  });
+
+  if (edgeError) return { success: false, error: 'Error del servidor: ' + edgeError.message };
+  if (edgeData?.error && edgeData.error !== 'User not found in auth.users') {
+    return { success: false, error: edgeData.error };
+  }
+
+  // Eliminar perfil público de win_users (si la tabla no tiene CASCADE o por seguridad)
   const { error } = await supabase.from('win_users').delete().eq('email', email);
   if (error) return { success: false, error: error.message };
+  
   await addAuditLog('ELIMINAR_USUARIO', 'USUARIO', email, { rolEliminado: user.role });
   return { success: true };
 };
