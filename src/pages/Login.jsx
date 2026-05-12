@@ -4,6 +4,8 @@ import { Card, Input, Button, Select } from '../components/ui';
 import { Wifi, ArrowRight, ShieldCheck, AlertCircle, Eye, EyeOff, Key, CheckCircle } from 'lucide-react';
 import { login, getSession, isValidEmail, changePassword } from '../utils/authService';
 import { useUI } from '../components/ui/Modal.jsx';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
+import { supabase } from '../utils/supabaseClient';
 import './Login.css';
 
 /**
@@ -28,10 +30,8 @@ const Login = () => {
   const [emailError, setEmailError]           = useState('');
   const [isLoading, setIsLoading]             = useState(false);
 
-  // ─── Captcha ──────────────────────────────────────────────────────────
-  const [captchaNum1, setCaptchaNum1]     = useState(0);
-  const [captchaNum2, setCaptchaNum2]     = useState(0);
-  const [captchaAnswer, setCaptchaAnswer] = useState('');
+  // ─── reCAPTCHA ──────────────────────────────────────────────────────────
+  const { executeRecaptcha } = useGoogleReCaptcha();
 
   // ─── Overlay de primer ingreso / cambio de contraseña ─────────────────
   const [showChangePwd, setShowChangePwd]   = useState(false);
@@ -52,11 +52,6 @@ const Login = () => {
     { label: 'Otro (Especificar)', value: 'Otro' }
   ];
 
-  // ─── Inicialización ───────────────────────────────────────────────────
-  useEffect(() => {
-    generateCaptcha();
-  }, []);
-
   // Redirigir si ya tiene sesión activa
   useEffect(() => {
     const session = getSession();
@@ -64,12 +59,6 @@ const Login = () => {
       navigate(session.role === 'TECNICO' ? '/buscar' : '/admin');
     }
   }, [navigate]);
-
-  const generateCaptcha = () => {
-    setCaptchaNum1(Math.floor(Math.random() * 10) + 1);
-    setCaptchaNum2(Math.floor(Math.random() * 10) + 1);
-    setCaptchaAnswer('');
-  };
 
   const handleEmailBlur = () => {
     if (email && !isValidEmail(email)) {
@@ -96,17 +85,40 @@ const Login = () => {
       return;
     }
 
-    // Validación 3: Captcha anti-bot
-    if (parseInt(captchaAnswer) !== (captchaNum1 + captchaNum2)) {
-      setErrorMsg('Error en el desafío de seguridad. Inténtalo de nuevo.');
-      generateCaptcha();
+    // Validación 3: Google reCAPTCHA v3
+    if (!executeRecaptcha) {
+      setErrorMsg('Verificación de seguridad no disponible. Por favor, recarga la página.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const token = await executeRecaptcha('login');
+      const { data, error } = await supabase.functions.invoke('verify-captcha', {
+        body: { token }
+      });
+
+      if (error || !data?.success) {
+        throw new Error(data?.error || 'No se pudo verificar el sistema de seguridad');
+      }
+
+      // Validar score de humano (mayor a 0.5)
+      if (data.score < 0.5) {
+        setErrorMsg('Se detectó actividad sospechosa en la conexión.');
+        setIsLoading(false);
+        return;
+      }
+    } catch (err) {
+      console.error('Error reCAPTCHA:', err);
+      setErrorMsg('Error al validar seguridad (reCAPTCHA). Inténtalo de nuevo.');
+      setIsLoading(false);
       return;
     }
 
     // Determinar cuadrilla a validar
     const finalCuadrilla = cuadrilla === 'Otro' ? cuadrillaCustom : cuadrilla;
 
-    setIsLoading(true);
     const result = await login(email, password, finalCuadrilla);
     setIsLoading(false);
 
@@ -118,11 +130,9 @@ const Login = () => {
           title: 'Cuadrilla Incorrecta',
           message: 'La cuadrilla seleccionada no corresponde a tu cuenta. Por favor verifica tu cuadrilla asignada con el Administrador.'
         });
-        generateCaptcha();
         return;
       }
       setErrorMsg(result.error);
-      generateCaptcha();
       return;
     }
 
@@ -249,22 +259,11 @@ const Login = () => {
               />
             )}
 
-            {/* Captcha */}
             <div className="login-captcha-section">
               <div className="login-captcha-label">
                 <ShieldCheck size={18} color="var(--win-orange)" />
-                <span>Verificación de Seguridad</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Protegido por reCAPTCHA v3</span>
               </div>
-              <p className="login-captcha-question">
-                ¿Cuánto es {captchaNum1} + {captchaNum2}?
-              </p>
-              <Input
-                type="number"
-                placeholder="Tu respuesta..."
-                value={captchaAnswer}
-                onChange={(e) => setCaptchaAnswer(e.target.value)}
-                required
-              />
             </div>
 
             <Button type="submit" className="login-submit-btn" disabled={isLoading}>
