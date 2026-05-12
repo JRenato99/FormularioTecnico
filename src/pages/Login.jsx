@@ -99,19 +99,30 @@ const Login = () => {
         body: { token }
       });
 
-      if (error || !data?.success) {
-        throw new Error(data?.error || 'No se pudo verificar el sistema de seguridad');
+      if (error) {
+        throw new Error(error.message || 'Error HTTP al contactar Supabase');
+      }
+
+      if (!data?.success) {
+        // Extraer los códigos de error de Google
+        const errorCodes = data?.details?.['error-codes'] || [];
+        if (errorCodes.includes('invalid-input-response')) {
+          throw new Error('Dominio no autorizado. Si estás en localhost, añádelo en tu consola de Google reCAPTCHA.');
+        }
+        throw new Error(`Google rechazó la solicitud: ${errorCodes.join(', ')}`);
       }
 
       // Validar score de humano (mayor a 0.5)
       if (data.score < 0.5) {
-        setErrorMsg('Se detectó actividad sospechosa en la conexión.');
+        setErrorMsg(`Se detectó actividad sospechosa (Score: ${data.score}). Conexión bloqueada.`);
         setIsLoading(false);
         return;
       }
     } catch (err) {
-      console.error('Error reCAPTCHA:', err);
-      setErrorMsg('Error al validar seguridad (reCAPTCHA). Inténtalo de nuevo.');
+      console.error('Error reCAPTCHA completo:', err);
+      // Extraer mensaje exacto para saber por qué falla (ej. localhost no autorizado, secret invalido)
+      const errorMessage = err.message || JSON.stringify(err);
+      setErrorMsg(`Error de reCAPTCHA: ${errorMessage}`);
       setIsLoading(false);
       return;
     }

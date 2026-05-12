@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
         error: 'Failed reCAPTCHA validation', 
         details: data 
       }), {
-        status: 403,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

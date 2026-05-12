@@ -16,149 +16,33 @@
 
 | Severidad | Hallazgos | Estado |
 |-----------|-----------|--------|
-| 🔴 CRÍTICO | 3 | Requieren acción inmediata |
-| 🟠 ALTO    | 5 | Planificar en próximo sprint |
-| 🟡 MEDIO   | 6 | Optimizaciones planificadas |
+| 🔴 CRÍTICO | 0 | ✅ Sistema estabilizado |
+| 🟠 ALTO    | 3 | Planificar en próximo sprint |
+| 🟡 MEDIO   | 6 | Deuda técnica / Optimizaciones |
 | 🔵 BAJO    | 4 | Mejoras de calidad de código |
-| **Total**  | **18** | |
+| **Total**  | **13** | (5 resueltos) |
 
 ---
 
-## 🔴 HALLAZGOS CRÍTICOS
+## ✅ HALLAZGOS SOLUCIONADOS (Corte 12-Mayo)
 
 ---
 
-### 🔴 C-01 — Notificaciones almacenadas en `localStorage` del navegador del Admin
+### 🟢 [RESUELTO] C-01 — Notificaciones en Supabase Realtime
+**Estado:** Corregido. Ahora las notificaciones se persisten en la tabla `win_notificaciones` y se consumen mediante Supabase en el Frontend.
 
-**Archivo:** `src/utils/authService.js` — Líneas 41-48  
-**Función afectada:** `crearNotificacion()`
+### 🟢 [RESUELTO] C-02 — Protección de Rutas (ProtectedRoute)
+**Estado:** Corregido. El componente ahora valida la sesión directamente contra el servidor de Supabase en cada carga de ruta, eliminando la vulnerabilidad de bypass por consola.
 
-**Problema:**  
-Cuando el Admin/Supervisor aprueba o rechaza una orden, la notificación para el técnico se escribe en el `localStorage` del **navegador del Administrador**, no en el del técnico. El técnico nunca verá esa notificación a menos que use el mismo dispositivo, lo cual en producción es imposible.
+### 🟢 [RESUELTO] C-03 — Política RLS de Edición
+**Estado:** Corregido. Se restauró el permiso para que los técnicos puedan editar órdenes en estado `RECHAZADO`.
 
-```javascript
-// ❌ CÓDIGO ACTUAL (escribe en localStorage del Admin)
-export const crearNotificacion = (tecnicoEmail, tipo, codigoCliente, motivo = '') => {
-  const notifs = getNotificaciones(); // Lee localStorage DEL NAVEGADOR ACTUAL (Admin)
-  notifs.push({ ... });
-  localStorage.setItem(KEY_NOTIFS, JSON.stringify(notifs)); // Guarda en el ADMIN, no en el técnico
-};
-```
-
-**Impacto:**  
-El técnico nunca recibe la notificación de rechazo/aprobación a través de la UI. El sistema de notificaciones es funcionalmente inoperante en un entorno multi-dispositivo real.
-
-**Solución recomendada:**  
-Crear una tabla `win_notifications` en Supabase y usar Realtime para entregarlas. La tabla `win_audit_logs` ya tiene la estructura; se podría adaptar o crear una tabla dedicada.
-
-```sql
--- Tabla sugerida (ejecutar en Supabase SQL Editor)
-CREATE TABLE public.win_notifications (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tecnico_id UUID REFERENCES public.win_users(id) ON DELETE CASCADE,
-  tipo TEXT NOT NULL,
-  cod_pedido TEXT NOT NULL,
-  motivo TEXT,
-  leida BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE public.win_notifications ENABLE ROW LEVEL SECURITY;
--- El técnico solo ve sus propias notificaciones
-CREATE POLICY "tecnico_ve_sus_notifs" ON public.win_notifications
-  FOR SELECT USING (tecnico_id = auth.uid());
-```
+### 🟢 [RESUELTO] A-02 — Eliminación de Mocks en Buscador
+**Estado:** Corregido. Se eliminó la inyección de datos falsos en `BuscadorCliente.jsx` y se implementó validación real de existencia de pedidos.
 
 ---
 
-### 🔴 C-02 — Guard de rutas (`ProtectedRoute`) confía 100% en `localStorage` sin verificar Supabase Auth
-
-**Archivo:** `src/components/layout/ProtectedRoute.jsx` — Línea 11  
-**Archivo relacionado:** `src/App.jsx` — Líneas 16-22
-
-**Problema:**  
-`ProtectedRoute` solo verifica si `win_session` existe en `localStorage`. Un atacante puede inyectar manualmente en la consola del navegador una sesión falsa con rol `ADMINISTRADOR` y acceder al Panel de Admin sin credenciales válidas:
-
-```javascript
-// ATAQUE: ejecutar esto en la consola del navegador
-localStorage.setItem('win_session', JSON.stringify({
-  id: 'fake-id', email: 'hacker@x.com', role: 'ADMINISTRADOR', cuadrilla: null
-}));
-// Navegar a /#/admin → ACCESO CONCEDIDO (la UI lo permite)
-```
-
-**Mitigación existente parcial:**  
-`App.jsx` líneas 16-22 limpia `win_session` si Supabase no tiene sesión activa al arrancar la app. Sin embargo, esto solo ocurre **una vez al montar `App`**. Si el token de Supabase expira durante la sesión, `ProtectedRoute` seguirá permitiendo el acceso hasta el próximo refresh.
-
-**Impacto:**  
-Bypass de autenticación en la UI. Aunque las políticas RLS en Supabase bloquearán las consultas reales a la BD, la UI completa del admin queda expuesta visualmente.
-
-**Solución recomendada:**  
-Complementar `ProtectedRoute` con verificación asíncrona del estado de sesión de Supabase usando `onAuthStateChange`:
-
-```javascript
-// En App.jsx — ampliar el useEffect existente
-useEffect(() => {
-  // Verificación inicial
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (!session) localStorage.removeItem('win_session');
-  });
-
-  // ✅ AÑADIR: Escuchar cambios en tiempo real (token expirado, logout remoto)
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_OUT' || !session) {
-      localStorage.removeItem('win_session');
-    }
-  });
-
-  return () => subscription.unsubscribe();
-}, []);
-```
-
----
-
-### 🔴 C-03 — Inconsistencia de esquema: `fix_rls.sql` regresa la política de técnicos editando órdenes
-
-**Archivo:** `supabase/fix_rls.sql` — Línea 41  
-**Archivo de referencia:** `supabase/schema.sql` — Línea 90
-
-**Problema:**  
-El `schema.sql` original permite al técnico editar una orden en estado `PENDIENTE` **o** `RECHAZADO`. Pero el script de corrección `fix_rls.sql` **elimina la capacidad de editar órdenes `RECHAZADAS`**:
-
-```sql
--- schema.sql (CORRECTO — permite PENDIENTE y RECHAZADO)
-USING (
-  (... role = 'TECNICO' AND estado IN ('PENDIENTE', 'RECHAZADO'))
-  ...
-)
-
--- fix_rls.sql (❌ INCORRECTO — solo PENDIENTE)
-USING (
-  (... role = 'TECNICO' AND estado = 'PENDIENTE')
-  ...
-)
-```
-
-**Impacto:**  
-Si `fix_rls.sql` fue el último script ejecutado, el flujo "Editar y Corregir" del técnico **falla silenciosamente**: `saveOrder()` en `databaseService.js` devuelve un error de RLS cuando el técnico intenta actualizar una orden `RECHAZADA`. El botón de edición en `BuscadorCliente.jsx` funciona a nivel UI pero la operación en la BD es rechazada.
-
-**Solución:**  
-Ejecutar este parche en el SQL Editor de Supabase:
-
-```sql
--- PARCHE URGENTE: Restaurar permiso de edición de órdenes rechazadas para técnicos
-DROP POLICY IF EXISTS "Actualizacion de ordenes" ON public.win_orders;
-CREATE POLICY "Actualizacion de ordenes" ON public.win_orders 
-FOR UPDATE USING (
-  ((SELECT role FROM public.win_users WHERE id = auth.uid()) = 'TECNICO' 
-    AND estado IN ('PENDIENTE', 'RECHAZADO'))  -- ✅ Restaurar RECHAZADO
-  OR ((SELECT role FROM public.win_users WHERE id = auth.uid()) = 'SUPERVISOR')
-  OR ((SELECT role FROM public.win_users WHERE id = auth.uid()) = 'ADMINISTRADOR')
-);
-```
-
----
-
-## 🟠 HALLAZGOS ALTOS
+## 🟠 HALLAZGOS PENDIENTES (Prioridad Alta)
 
 ---
 
@@ -184,28 +68,6 @@ supabase.from('win_audit_logs').insert([...]).then(({ error }) => {
 Los logs de auditoría pueden perderse sin que nadie lo sepa. En un sistema empresarial, la auditoría incompleta es un fallo de cumplimiento (compliance).
 
 ---
-
-### 🟠 A-02 — `BuscadorCliente.jsx` nuevo: `BuscadorCliente.jsx` actualizado tiene tamaño de archivo de 15 KB con lógica duplicada
-
-**Archivo:** `src/pages/BuscadorCliente.jsx` — Tamaño: 15,439 bytes
-
-**Problema:**  
-El archivo declara `const [historial, setHistorial]` y carga órdenes, pero también tiene un bloque `handleBuscar` con datos mock hardcodeados que simula un cliente falso. La función de búsqueda real de clientes en WIN **no está implementada**:
-
-```javascript
-// ❌ MOCK en producción — BuscadorCliente.jsx líneas 58-66
-setTimeout(() => {
-  setCliente({
-    codigo: codigo,
-    plan: '1000 Mbps - Fibra',          // ← Dato falso hardcodeado
-    direccion: 'Av. Javier Prado Este 1234, San Borja, Lima', // ← Falso
-    tipo: 'Instalación Nueva'             // ← Falso
-  });
-}, 800);
-```
-
-**Impacto:**  
-En producción, cualquier código numérico ingresado retornará siempre el mismo cliente ficticio. Un técnico podría crear órdenes con código incorrecto sin saberlo.
 
 ---
 
@@ -500,9 +362,9 @@ const handleLogout = async () => {
 ```
 IMPACTO   │ ESFUERZO →    BAJO           MEDIO           ALTO
 ──────────┼──────────────────────────────────────────────────
-CRÍTICO   │            C-03 (SQL)    C-02 (Auth)    C-01 (Notifs)
+CRÍTICO   │        (NINGUNO)      (NINGUNO)       (NINGUNO)
 ALTO      │         A-05 (Draft)    A-01 (Audit)   A-04 (Edge Fn)
-          │                         A-03 (Hook)    A-02 (Mock)
+          │                         A-03 (Hook)    (SOLUCIONADO)
 MEDIO     │          M-06 (Valid)   M-01 (pkg.json) M-04 (Realtime)
           │          M-02 (SELECT)  M-03 (RPC)     M-05 (Captcha)
 BAJO      │          B-04 (async)   B-01 (Props)   B-02 (Schema)
