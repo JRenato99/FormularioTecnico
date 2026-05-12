@@ -89,7 +89,7 @@ const BuscadorCliente = () => {
         // La orden NO existe, puede iniciar un registro nuevo
         setCliente({
           codigo: codigo,
-          plan: 'Servicio Fibra WIN (Nuevo Registro)',
+          plan: 'Servicio FTTH (Por verificar)',
           direccion: 'Dirección por confirmar en visita',
           tipo: 'Instalación Nueva'
         });

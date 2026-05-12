@@ -62,15 +62,16 @@ export const Header = () => {
     }
   }, [session.email]);
 
-  const actualizarNotificaciones = () => {
-    const todasNotifs = getNotificaciones().filter(n => n.tecnicoEmail === session.email);
+  const actualizarNotificaciones = async () => {
+    const todasNotifs = await getNotificaciones(session.email);
     setNotifs(todasNotifs);
-    setNotifsBadge(contarNotificacionesNoLeidas(session.email));
+    const noLeidas = await contarNotificacionesNoLeidas(session.email);
+    setNotifsBadge(noLeidas);
   };
 
-  const handleToggleNotifs = () => {
+  const handleToggleNotifs = async () => {
     if (!showNotifs && session.email) {
-      marcarNotificacionesLeidas(session.email);
+      await marcarNotificacionesLeidas(session.email);
       setNotifsBadge(0);
       setNotifs(prev => prev.map(n => ({ ...n, leida: true })));
     }

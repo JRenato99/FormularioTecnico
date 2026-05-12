@@ -33,27 +33,60 @@ export const addAuditLog = async (accion, recursoTipo = '', recursoId = '', deta
   });
 };
 
-// ─── Notificaciones (local, futuro: Supabase Realtime) ───────────────────────
-export const getNotificaciones = () => {
-  try { return JSON.parse(localStorage.getItem(KEY_NOTIFS) || '[]'); } catch { return []; }
+// ─── Notificaciones (Supabase Realtime) ──────────────────────────────────
+export const getNotificaciones = async (tecnicoEmail) => {
+  const { data, error } = await supabase
+    .from('win_notificaciones')
+    .select('*')
+    .eq('tecnico_email', tecnicoEmail)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('Error fetching notificaciones:', error);
+    return [];
+  }
+  return data || [];
 };
 
-export const crearNotificacion = (tecnicoEmail, tipo, codigoCliente, motivo = '') => {
-  const notifs = getNotificaciones();
+export const crearNotificacion = async (tecnicoEmail, tipo, codigoCliente, motivo = '') => {
   const msg = tipo === 'RECHAZADO'
     ? `Tu formulario de la orden ${codigoCliente} fue RECHAZADO. Motivo: ${motivo || 'Sin especificar'}`
     : `Tu formulario de la orden ${codigoCliente} fue APROBADO. ✅`;
-  notifs.push({ id: `NOTIF-${Date.now()}`, tecnicoEmail, tipo, codigoCliente, motivo, mensaje: msg, leida: false, creadoEn: new Date().toISOString() });
-  localStorage.setItem(KEY_NOTIFS, JSON.stringify(notifs));
+
+  const { error } = await supabase.from('win_notificaciones').insert([{
+    tecnico_email: tecnicoEmail,
+    tipo,
+    codigo_cliente: codigoCliente,
+    motivo,
+    mensaje: msg,
+    leida: false
+  }]);
+
+  if (error) console.error('Error al crear notificacion:', error);
 };
 
-export const marcarNotificacionesLeidas = (tecnicoEmail) => {
-  const notifs = getNotificaciones().map(n => n.tecnicoEmail === tecnicoEmail ? { ...n, leida: true } : n);
-  localStorage.setItem(KEY_NOTIFS, JSON.stringify(notifs));
+export const marcarNotificacionesLeidas = async (tecnicoEmail) => {
+  const { error } = await supabase
+    .from('win_notificaciones')
+    .update({ leida: true })
+    .eq('tecnico_email', tecnicoEmail)
+    .eq('leida', false);
+
+  if (error) console.error('Error al marcar notificaciones como leídas:', error);
 };
 
-export const contarNotificacionesNoLeidas = (tecnicoEmail) =>
-  getNotificaciones().filter(n => n.tecnicoEmail === tecnicoEmail && !n.leida).length;
+export const contarNotificacionesNoLeidas = async (tecnicoEmail) => {
+  const { count, error } = await supabase
+    .from('win_notificaciones')
+    .select('*', { count: 'exact', head: true })
+    .eq('tecnico_email', tecnicoEmail)
+    .eq('leida', false);
+
+  if (error) {
+    console.error('Error al contar notificaciones:', error);
+    return 0;
+  }
+  return count || 0;
+};
 
 // ─── Sesión ────────────────────────────────────────────────────────────────────
 export const getSession = () => {

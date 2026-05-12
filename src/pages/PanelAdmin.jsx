@@ -127,7 +127,7 @@ const PanelAdmin = () => {
     setOrdenes(prev => prev.map(o =>
       o.codigoCliente === codigoCliente ? { ...o, status: 'APROBADO' } : o
     ));
-    if (orden?.tecnicoEmail) crearNotificacion(orden.tecnicoEmail, 'APROBADO', codigoCliente);
+    if (orden?.tecnicoEmail) await crearNotificacion(orden.tecnicoEmail, 'APROBADO', codigoCliente);
     addAuditLog('APROBAR', 'ORDEN', codigoCliente, { gestionadoPor: session.email });
     showToast({ type: 'success', title: 'Orden Aprobada', message: `Orden ${codigoCliente} aprobada exitosamente.` });
   };
@@ -153,7 +153,7 @@ const PanelAdmin = () => {
         : o
     ));
     if (ordenParaRechazar?.tecnicoEmail) {
-      crearNotificacion(ordenParaRechazar.tecnicoEmail, 'RECHAZADO', codigoCliente, motivoRechazo.trim());
+      await crearNotificacion(ordenParaRechazar.tecnicoEmail, 'RECHAZADO', codigoCliente, motivoRechazo.trim());
     }
     addAuditLog('RECHAZAR', 'ORDEN', codigoCliente, { motivo: motivoRechazo.trim(), gestionadoPor: session.email });
     showToast({ type: 'info', title: 'Orden Rechazada', message: `Orden ${codigoCliente} rechazada.` });

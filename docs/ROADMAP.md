@@ -18,20 +18,19 @@ Este documento detalla los pasos necesarios para llevar **FormularioTecnico** de
 
 ## 🛣️ Fases del Roadmap
 
-### Fase 1: Backend y Base de Datos 🔴 (Crítico)
+### Fase 1: Backend y Base de Datos 🔴 (Crítico) [✅ COMPLETADO CON SUPABASE]
 > **Objetivo**: Reemplazar localStorage por un backend real.
 
-| Paso | Descripción | Prioridad |
-|------|-------------|-----------|
-| 1.1 | Crear proyecto Node.js + Express como API REST | Alta |
-| 1.2 | Configurar PostgreSQL con esquema de tablas (`usuarios`, `ordenes`, `equipos`, `mediciones`, `winboxes`, `televisores`) | Alta |
-| 1.3 | Implementar endpoints CRUD: `/api/auth/login`, `/api/auth/register`, `/api/users` | Alta |
-| 1.4 | Implementar endpoints de órdenes: `/api/orders`, `/api/orders/:id/approve`, `/api/orders/:id/reject` | Alta |
-| 1.5 | Hash de contraseñas con bcrypt | Alta |
-| 1.6 | Migrar `authService.js` para consumir la API en lugar de localStorage | Alta |
-| 1.7 | Migrar auto-guardado para sincronizar con el servidor | Alta |
+| Paso | Descripción | Prioridad | Estado |
+|------|-------------|-----------|--------|
+| 1.1 | Crear proyecto Backend Serverless (Supabase) | Alta | ✅ Listo |
+| 1.2 | Configurar PostgreSQL con esquema de tablas | Alta | ✅ Listo |
+| 1.3 | Implementar Edge Functions para autenticación/usuarios | Alta | ✅ Listo |
+| 1.4 | Implementar tabla `win_orders` con RLS | Alta | ✅ Listo |
+| 1.5 | Migrar `authService.js` para consumir Supabase | Alta | ✅ Listo |
+| 1.6 | Migrar auto-guardado para sincronizar con el servidor | Alta | ✅ Listo |
 
-**Tecnologías sugeridas**: Node.js + Express + PostgreSQL + Sequelize/Prisma
+**Tecnologías actuales**: React + Supabase (Edge Functions / PostgreSQL + RLS)
 
 ---
 
