@@ -99,6 +99,9 @@ El diseño de la aplicación cumple los más altos estándares visuales (Glassmo
 - ✅ **Admin Panel Conectado**: CRUD de usuarios desde React conectado directamente a `public.win_users` en Supabase.
 - ✅ **Resolución de Conflictos RLS**: Corrección de bucles de recursión infinita en las políticas de seguridad en PostgreSQL. Corrección del naming `ADMIN` a `ADMINISTRADOR`.
 - ✅ **Fix UI Topología**: Refactorizado CSS de TopologiaRed usando `position: absolute` para evitar deformaciones en Flexbox y corregir renderizado móvil.
+- ✅ **Validación Estricta de Hardware**: Implementación de reglas de validación de S/N (ZTE: 15 carac/prefijo "ZTE", Huawei: 16 carac).
+- ✅ **Sincronización de Marcas**: Lógica de herencia de marca entre ONT y APs de WIN, bloqueando el selector para evitar inconsistencias.
+- ✅ **Flujo de Cancelación**: Añadido botón de cancelación con limpieza total de borradores locales (`clearDraft`) para seguridad de datos.
 - ⏳ **PENDIENTE**: Refactorizar `FormularioTecnico.jsx` para despachar el objeto final a Supabase.
 
 ### Fases Anteriores (Abril 2026)
