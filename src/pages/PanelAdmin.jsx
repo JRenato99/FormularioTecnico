@@ -37,6 +37,7 @@ const PanelAdmin = () => {
   const [filtroCuadrilla, setFiltroCuadrilla] = useState('TODAS');
   const [activeTab, setActiveTab]         = useState('ORDENES');
   const [listaCuadrillas, setListaCuadrillas] = useState([]);
+  const [filtroFechaAuditoria, setFiltroFechaAuditoria] = useState('');
   
   // Acordeón: índice de la orden expandida (-1 = ninguna)
   const [expandedIndex, setExpandedIndex] = useState(-1);
@@ -327,13 +328,15 @@ const PanelAdmin = () => {
                 <span className="stat-label">Usuarios</span>
               </div>
             )}
-            <div 
-              className={`stat-item ${activeTab === 'AUDITORIA' ? 'active' : ''}`}
-              onClick={() => setActiveTab('AUDITORIA')}
-            >
-              <History size={22} />
-              <span className="stat-label">Auditoría</span>
-            </div>
+            {isAdmin && (
+              <div 
+                className={`stat-card ${activeTab === 'AUDITORIA' ? 'stat-card--active' : ''}`}
+                onClick={() => setActiveTab('AUDITORIA')}
+              >
+                <History size={22} />
+                <span className="stat-label">Auditoría</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -642,7 +645,7 @@ const PanelAdmin = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {usuarios.map((u) => {
+                    {usuarios.map((u, i) => {
                       const rolColors = { ADMINISTRADOR: '#FF3D00', SUPERVISOR: '#1E90FF', TECNICO: '#00C853' };
                       const isSelf = session?.email === u.email;
                       return (
@@ -688,14 +691,23 @@ const PanelAdmin = () => {
         {/* ═══════════════════════════════════════════════════════════════
             PESTAÑA: AUDITORÍA
             ═══════════════════════════════════════════════════════════════ */}
-        {activeTab === 'AUDITORIA' && (
+        {activeTab === 'AUDITORIA' && isAdmin && (
           <div className="tab-pane animate-fade-in">
             <Card>
-              <div className="admin-header-row">
+              <div className="admin-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 className="admin-section-title"><History size={20} color="var(--win-blue)" /> Historial de Auditoría</h2>
-                <Button onClick={fetchAuditLogs} variant="secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
-                  Actualizar
-                </Button>
+                <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+                  <input 
+                    type="date" 
+                    className="ui-input"
+                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', background: 'var(--bg-secondary)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '6px' }}
+                    value={filtroFechaAuditoria} 
+                    onChange={e => setFiltroFechaAuditoria(e.target.value)} 
+                  />
+                  <Button onClick={fetchAuditLogs} variant="secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
+                    Actualizar
+                  </Button>
+                </div>
               </div>
               <div className="detail-table-wrapper" style={{ marginTop: '1.5rem' }}>
                 <table className="detail-table users-table">
@@ -705,10 +717,17 @@ const PanelAdmin = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {auditLogs.length === 0 ? (
-                      <tr><td colSpan="4" style={{ textAlign: 'center', padding: '2rem' }}>No hay registros de auditoría.</td></tr>
-                    ) : (
-                      auditLogs.map((log) => (
+                    {(() => {
+                      const logsFiltrados = auditLogs.filter(log => {
+                        if (!filtroFechaAuditoria) return true;
+                        return log.created_at.startsWith(filtroFechaAuditoria);
+                      });
+
+                      if (logsFiltrados.length === 0) {
+                        return <tr><td colSpan="4" style={{ textAlign: 'center', padding: '2rem' }}>No hay registros de auditoría para mostrar.</td></tr>;
+                      }
+
+                      return logsFiltrados.map((log) => (
                         <tr key={log.id}>
                           <td style={{ whiteSpace: 'nowrap' }}>{new Date(log.created_at).toLocaleString()}</td>
                           <td>
@@ -721,8 +740,8 @@ const PanelAdmin = () => {
                             {log.descripcion || '—'}
                           </td>
                         </tr>
-                      ))
-                    )}
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>

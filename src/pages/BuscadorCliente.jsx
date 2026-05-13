@@ -7,7 +7,7 @@ import { getSession } from '../utils/authService';
 import { supabase } from '../utils/supabaseClient';
 import { getOrders } from '../utils/databaseService';
 import { useUI } from '../components/ui/Modal.jsx';
-import './BuscadorCliente.css'; 
+import './BuscadorCliente.css';
 
 /**
  * Componente principal del módulo de Autenticación/Ruteo de Visita y visor de historial local.
@@ -15,7 +15,7 @@ import './BuscadorCliente.css';
 const BuscadorCliente = () => {
   const { showToast } = useUI();
   const navigate = useNavigate();
-  
+
   const [codigo, setCodigo] = useState('');
   const [cliente, setCliente] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -54,49 +54,43 @@ const BuscadorCliente = () => {
   const handleBuscar = async (e) => {
     e.preventDefault();
     if (!codigo) return;
+
+    if (codigo.length < 5 || codigo.length > 7) {
+      showToast({ type: 'warning', title: 'Código inválido', message: 'El código de pedido debe tener entre 5 y 7 dígitos numéricos.' });
+      return;
+    }
+
     setLoading(true);
-    
+
     try {
       // Validar si el código de pedido ya existe en la base de datos general
       const { data, error } = await supabase
         .from('win_orders')
-        .select('codigoCliente, tecnicoEmail, status')
-        .eq('codigoCliente', codigo);
-        
+        .select('cod_pedido, estado')
+        .eq('cod_pedido', codigo);
+
       if (error) throw error;
-      
+
       if (data && data.length > 0) {
-        const ordenExistente = data[0];
-        
-        // Si la orden ya existe y es del mismo técnico, le permitimos continuar (handleContinuar validará si puede editarla)
-        if (ordenExistente.tecnicoEmail === tecnico?.email) {
-            setCliente({
-              codigo: codigo,
-              plan: 'Servicio Fibra WIN (Orden Existente)',
-              direccion: 'Dirección confirmada en registro',
-              tipo: `Estado: ${ordenExistente.status}`
-            });
-        } else {
-            // La orden existe y pertenece a otro técnico
-            showToast({ 
-              type: 'error', 
-              title: 'Código Duplicado', 
-              message: `El código ${codigo} ya fue registrado por otro técnico.` 
-            });
-            setCliente(null);
-        }
+        // La orden ya existe, bloqueamos la creación sin importar de qué técnico sea
+        showToast({
+          type: 'error',
+          title: 'Código Duplicado',
+          message: `El código de pedido ${codigo} ya se encuentra registrado en el sistema.`
+        });
+        setCliente(null);
       } else {
         // La orden NO existe, puede iniciar un registro nuevo
         setCliente({
           codigo: codigo,
-          plan: 'Servicio FTTH (Por verificar)',
+          plan: 'Servicio FTTH',
           direccion: 'Dirección por confirmar en visita',
           tipo: 'Instalación Nueva'
         });
       }
     } catch (err) {
       console.error(err);
-      showToast({ type: 'error', title: 'Error de red', message: 'No se pudo verificar el código de pedido.' });
+      showToast({ type: 'error', title: 'Error de red', message: `No se pudo verificar: ${err.message || JSON.stringify(err)}` });
     } finally {
       setLoading(false);
     }
@@ -110,18 +104,18 @@ const BuscadorCliente = () => {
 
     // Validación de integridad: Verificar si ya existe en el historial del técnico
     const ordenExistente = historial.find(o => o.codigoCliente === cliente.codigo);
-    
+
     if (ordenExistente) {
       if (ordenExistente.status === 'APROBADO') {
         showToast({ type: 'error', title: 'Orden Bloqueada', message: 'Esta orden ya fue APROBADA por el supervisor. No se puede modificar.' });
         return;
       }
-      
+
       if (ordenExistente.status === 'PENDIENTE') {
         showToast({ type: 'warning', title: 'Aviso de Sobrescritura', message: 'Esta orden está en revisión. Al continuar, podrías sobrescribir los datos enviados.' });
         // Opcional: podríamos cargar los datos aquí, pero como es PENDIENTE, normalmente el técnico no debería editarla.
       }
-      
+
       if (ordenExistente.status === 'RECHAZADO') {
         // Redirigir automáticamente usando el flujo de edición correcto para no perder la ordenPrevia
         handleEditarRechazada(ordenExistente);
@@ -136,7 +130,9 @@ const BuscadorCliente = () => {
   const handleCodigoChange = (e) => {
     // Permitir solo números, bloquear letras o caracteres especiales
     const value = e.target.value.replace(/\D/g, '');
-    setCodigo(value);
+    if (value.length <= 7) {
+      setCodigo(value);
+    }
   };
 
   const getStatusIcon = (status) => {
@@ -154,8 +150,8 @@ const BuscadorCliente = () => {
    * Carga los datos previos de la orden en el formulario via state.
    */
   const handleEditarRechazada = (orden) => {
-    navigate('/formulario', { 
-      state: { 
+    navigate('/formulario', {
+      state: {
         codigo: orden.codigoCliente,
         tipoVivienda: orden.tipoVivienda || 'Casa',
         modoEdicion: true,
@@ -173,24 +169,24 @@ const BuscadorCliente = () => {
         <div className="buscador-wrapper">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.5rem' }}>
             <div>
-              <h1 className="buscador-title">Buscar Orden de Trabajo</h1>
+              <h1 className="buscador-title">Registrar Nuevo Pedido</h1>
               <p className="buscador-subtitle">
-                Ingresa el código de pedido (solo números) para iniciar el registro.
+                Ingresa el código de pedido (5 a 7 dígitos) para iniciar un nuevo registro.
               </p>
             </div>
           </div>
           <Card className="buscador-card">
             <form onSubmit={handleBuscar} className="buscador-form">
               <div className="buscador-input-container">
-                <Input 
-                  label="Código de Pedido / Cliente" 
-                  placeholder="Ej: 849201" 
+                <Input
+                  label="Código de Pedido / Cliente"
+                  placeholder="Ej: 849201"
                   value={codigo}
                   onChange={handleCodigoChange}
                 />
               </div>
               <Button type="submit" disabled={loading} className="buscador-btn">
-                {loading ? 'Buscando...' : <><Search size={18} /> Buscar</>}
+                {loading ? 'Verificando...' : <><CheckCircle size={18} /> Iniciar Registro</>}
               </Button>
             </form>
           </Card>
@@ -211,7 +207,7 @@ const BuscadorCliente = () => {
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="cliente-info-box">
                   <span className="cliente-info-label">Tipo de Servicio:</span>
                   <span className="cliente-info-value">{cliente.tipo}</span>
@@ -222,23 +218,23 @@ const BuscadorCliente = () => {
                   <h4 style={{ marginBottom: '0.8rem', color: 'var(--text-primary)', fontSize: '0.95rem' }}>Tipo de Domicilio (*)</h4>
                   <div style={{ display: 'flex', gap: '2rem' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
-                      <input 
-                        type="radio" 
-                        name="vivienda" 
-                        value="Casa" 
-                        checked={tipoVivienda === 'Casa'} 
-                        onChange={(e) => setTipoVivienda(e.target.value)} 
+                      <input
+                        type="radio"
+                        name="vivienda"
+                        value="Casa"
+                        checked={tipoVivienda === 'Casa'}
+                        onChange={(e) => setTipoVivienda(e.target.value)}
                         style={{ accentColor: 'var(--win-orange)', width: '16px', height: '16px' }}
                       />
                       <span>Casa</span>
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
-                      <input 
-                        type="radio" 
-                        name="vivienda" 
-                        value="Departamento" 
-                        checked={tipoVivienda === 'Departamento'} 
-                        onChange={(e) => setTipoVivienda(e.target.value)} 
+                      <input
+                        type="radio"
+                        name="vivienda"
+                        value="Departamento"
+                        checked={tipoVivienda === 'Departamento'}
+                        onChange={(e) => setTipoVivienda(e.target.value)}
                         style={{ accentColor: 'var(--win-orange)', width: '16px', height: '16px' }}
                       />
                       <span>Departamento</span>
@@ -256,18 +252,18 @@ const BuscadorCliente = () => {
           {/* Seccion: Historial de Órdenes Locales */}
           {!cliente && historial.length > 0 && (
             <div className="historial-container animate-fade-in" style={{ marginTop: '3rem' }}>
-              
+
               {/* Información del Técnico */}
               {tecnico && (
-                 <Card style={{ marginBottom: '1.5rem', background: 'rgba(255, 107, 0, 0.05)', borderColor: 'var(--win-orange)', display: 'flex', flexDirection: 'column', gap: '0.3rem', padding: '1rem' }}>
-                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontWeight: 'bold' }}>
-                     <User size={18} color="var(--win-orange)" />
-                     Técnico Asignado: <span style={{ color: 'var(--win-orange)' }}>{tecnico.email}</span>
-                   </div>
-                   <div style={{ paddingLeft: '1.8rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                     Cuadrilla de Calle: <strong>{tecnico.cuadrilla}</strong>
-                   </div>
-                 </Card>
+                <Card style={{ marginBottom: '1.5rem', background: 'rgba(255, 107, 0, 0.05)', borderColor: 'var(--win-orange)', display: 'flex', flexDirection: 'column', gap: '0.3rem', padding: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontWeight: 'bold' }}>
+                    <User size={18} color="var(--win-orange)" />
+                    Técnico Asignado: <span style={{ color: 'var(--win-orange)' }}>{tecnico.email}</span>
+                  </div>
+                  <div style={{ paddingLeft: '1.8rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                    Cuadrilla de Calle: <strong>{tecnico.cuadrilla}</strong>
+                  </div>
+                </Card>
               )}
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
@@ -280,10 +276,10 @@ const BuscadorCliente = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
                       <div>
                         <h4 style={{ color: 'var(--text-primary)', margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                           <FileText size={16} /> Orden: {orden.codigoCliente}
+                          <FileText size={16} /> Orden: {orden.codigoCliente}
                         </h4>
                         <p style={{ color: 'var(--text-secondary)', margin: '0.4rem 0 0 0', fontSize: '0.85rem' }}>
-                           Fecha: {new Date(orden.fechaGuardado || Date.now()).toLocaleString()}
+                          Fecha: {new Date(orden.fechaGuardado || Date.now()).toLocaleString()}
                         </p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text-primary)', background: 'rgba(255,255,255,0.05)', padding: '0.4rem 0.8rem', borderRadius: '20px' }}>
@@ -291,14 +287,14 @@ const BuscadorCliente = () => {
                         {orden.status}
                       </div>
                     </div>
-                    
+
                     {/* Detalles compactos para evitar que se vea descuadrado en móviles */}
                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--win-blue-light)', background: 'rgba(0,0,0,0.15)', padding: '0.5rem', borderRadius: '6px' }}>
-                       <span>Equipos: {orden.equipos ? orden.equipos.length : 0}</span>
-                       <span>|</span>
-                       <span>Mediciones: {orden.mediciones ? orden.mediciones.length : 0}</span>
-                       <span>|</span>
-                       <span>Winbox: {orden.winboxes ? orden.winboxes.length : 0}</span>
+                      <span>Equipos: {orden.equipos ? orden.equipos.length : 0}</span>
+                      <span>|</span>
+                      <span>Mediciones: {orden.mediciones ? orden.mediciones.length : 0}</span>
+                      <span>|</span>
+                      <span>Winbox: {orden.winboxes ? orden.winboxes.length : 0}</span>
                     </div>
 
                     {/* Motivo de rechazo visible para el técnico — viene de Supabase */}
@@ -315,8 +311,8 @@ const BuscadorCliente = () => {
 
                     {/* Botón de Editar solo para órdenes RECHAZADAS */}
                     {orden.status === 'RECHAZADO' && (
-                      <Button 
-                        onClick={() => handleEditarRechazada(orden)} 
+                      <Button
+                        onClick={() => handleEditarRechazada(orden)}
                         style={{ alignSelf: 'flex-start', background: 'rgba(255,107,0,0.12)', border: '1px solid var(--win-orange)', color: 'var(--win-orange)', fontSize: '0.85rem' }}
                       >
                         <Edit2 size={14} /> Editar y Corregir Formulario

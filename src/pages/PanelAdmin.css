@@ -113,7 +113,13 @@
   width: auto !important;
   min-width: 140px;
   background: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
   font-size: 0.85rem;
+}
+
+.filter-select option {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 /* ─── Lista de Órdenes ────────────────────────────────────────────────── */
