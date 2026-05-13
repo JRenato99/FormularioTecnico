@@ -19,12 +19,34 @@
   font-size: 0.9rem;
 }
 
-.dashboard-finish-btn {
-  flex-grow: 1;
-  max-width: 200px;
+.dashboard-actions-container {
+  margin-top: 3rem;
+  margin-bottom: 4rem;
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.dashboard-btn-large {
+  padding: 1rem 2.5rem !important;
+  font-size: 1.1rem !important;
+  min-width: 220px;
 }
 
 .dashboard-content-grid {
   display: grid;
   gap: 2rem;
+}
+
+@media screen and (max-width: 768px) {
+  .dashboard-actions-container {
+    flex-direction: column-reverse;
+    gap: 1rem;
+    padding: 0 1rem;
+  }
+  
+  .dashboard-btn-large {
+    width: 100%;
+    min-width: unset;
+  }
 }

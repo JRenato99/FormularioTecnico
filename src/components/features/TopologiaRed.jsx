@@ -24,9 +24,10 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   // Estructura Vacía de un AP para resetear después de añadir
   const initialApState = {
     serialNumber: '',
+    marca: 'Huawei',
     parentId: 'ONT',
-    conexion: 'Cableado', 
-    banda: '5G', 
+    conexion: 'Cableado',
+    banda: '5G',
     rssiBackhaul: '',
     piso: '',
     ambiente: 'Sala',
@@ -41,6 +42,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
 
   const [newOnt, setNewOnt] = useState({
     serialNumber: '',
+    marca: 'Huawei',
     piso: '1',
     ambiente: 'Sala',
     ambientePersonalizado: ''
@@ -50,27 +52,51 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   const apCount = equipos.filter(e => e.tipo === 'AP').length;
 
   const handlePisoChange = (val, mode) => {
-    let pStr = val.replace(/\D/g, ''); 
+    let pStr = val.replace(/\D/g, '');
     let p = pStr ? parseInt(pStr, 10) : '';
     if (p !== '') {
       if (p < 1) p = 1;
       if (p > 5) p = 5;
       p = p.toString();
     }
-    
-    if (mode === 'ont') setNewOnt({...newOnt, piso: p});
-    else if (mode === 'ap') setNewAp({...newAp, piso: p});
-    else if (mode === 'edit') setEditingNode({...editingNode, piso: p});
+
+    if (mode === 'ont') setNewOnt({ ...newOnt, piso: p });
+    else if (mode === 'ap') setNewAp({ ...newAp, piso: p });
+    else if (mode === 'edit') setEditingNode({ ...editingNode, piso: p });
   };
 
   const handleRssiChange = (val, isEdit = false) => {
-    let vStr = val.replace(/-/g, ''); 
+    let vStr = val.replace(/-/g, '');
     let finalVal = '';
     if (vStr && !isNaN(parseInt(vStr, 10))) {
       finalVal = `-${Math.abs(parseInt(vStr, 10))}`;
     }
-    if (isEdit) setEditingNode({...editingNode, rssiBackhaul: finalVal});
-    else setNewAp({...newAp, rssiBackhaul: finalVal});
+    if (isEdit) setEditingNode({ ...editingNode, rssiBackhaul: finalVal });
+    else setNewAp({ ...newAp, rssiBackhaul: finalVal });
+  };
+
+  /**
+   * handleSNChange
+   * Enforce brand-specific S/N rules in real-time
+   */
+  const handleSNChange = (val, mode) => {
+    // Solo permitir alfanuméricos
+    let clean = val.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+    let target;
+    if (mode === 'ont') target = newOnt;
+    else if (mode === 'ap') target = newAp;
+    else if (mode === 'edit') target = editingNode;
+
+    const marca = target.marca || 'ZTE';
+    const limit = marca === 'ZTE' ? 15 : 16;
+
+    // Bloquear longitud
+    if (clean.length > limit) clean = clean.substring(0, limit);
+
+    if (mode === 'ont') setNewOnt({ ...newOnt, serialNumber: clean });
+    else if (mode === 'ap') setNewAp({ ...newAp, serialNumber: clean });
+    else if (mode === 'edit') setEditingNode({ ...editingNode, serialNumber: clean });
   };
 
   const handleAddOnt = () => {
@@ -81,9 +107,18 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     const ambienteF = newOnt.ambiente === 'Otro' ? newOnt.ambientePersonalizado : newOnt.ambiente;
     if (newOnt.ambiente === 'Otro') onAgregarUbicacion(newOnt.ambientePersonalizado);
 
+    // Validación Final Estricta
+    if (newOnt.marca === 'ZTE') {
+      if (newOnt.serialNumber.length !== 15) return showToast({ type: 'error', title: 'S/N Inválido', message: 'El S/N de ZTE debe tener exactamente 15 caracteres.' });
+      if (!newOnt.serialNumber.startsWith('ZTE')) return showToast({ type: 'error', title: 'S/N Inválido', message: 'El S/N de ZTE debe comenzar con los caracteres "ZTE".' });
+    } else {
+      if (newOnt.serialNumber.length !== 16) return showToast({ type: 'error', title: 'S/N Inválido', message: 'El S/N de Huawei debe tener exactamente 16 caracteres.' });
+    }
+
     setEquipos([{
       id: 'ONT',
       serialNumber: newOnt.serialNumber,
+      marca: newOnt.marca,
       nombre: 'ONT',
       tipo: 'ONT',
       piso: newOnt.piso,
@@ -97,7 +132,9 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
 
   const openAddApPanel = (is3th) => {
     setIsAdding3thParty(is3th);
-    setNewAp(initialApState);
+    // Heredar marca de la ONT si es equipo WIN
+    const marcaSincronizada = !is3th && ontNode ? ontNode.marca : initialApState.marca;
+    setNewAp({ ...initialApState, marca: marcaSincronizada });
     setMarcaTercero('');
     setMarcaTerceroCustom('');
     setEditingNode(null);
@@ -134,19 +171,27 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
       );
       if (!confirmar) return;
     }
-    
+
     if (!isAdding3thParty && !newAp.serialNumber) return showToast({ type: 'error', title: 'Falta S/N', message: 'Debes ingresar el S/N del AP WIN.' });
     if (!newAp.piso) return showToast({ type: 'error', title: 'Falta Piso', message: 'Debes rellenar el Piso del Access Point.' });
     if (newAp.ambiente === 'Otro' && !newAp.ambientePersonalizado) return showToast({ type: 'error', title: 'Falta Ambiente', message: 'Por favor escribe el nombre del ambiente.' });
 
     // Validar S/N único entre todos los equipos registrados
     if (!isAdding3thParty) {
+      // Validación Final Estricta para AP WIN
+      if (newAp.marca === 'ZTE') {
+        if (newAp.serialNumber.length !== 15) return showToast({ type: 'error', title: 'S/N Inválido', message: 'El S/N de ZTE debe tener exactamente 15 caracteres.' });
+        if (!newAp.serialNumber.startsWith('ZTE')) return showToast({ type: 'error', title: 'S/N Inválido', message: 'El S/N de ZTE debe comenzar con los caracteres "ZTE".' });
+      } else {
+        if (newAp.serialNumber.length !== 16) return showToast({ type: 'error', title: 'S/N Inválido', message: 'El S/N de Huawei debe tener exactamente 16 caracteres.' });
+      }
+
       const snDuplicado = equipos.find(e => e.serialNumber && e.serialNumber.toUpperCase() === newAp.serialNumber.toUpperCase());
       if (snDuplicado) return showToast({ type: 'error', title: 'S/N Duplicado', message: `El S/N "${newAp.serialNumber}" ya está registrado en (${snDuplicado.nombre}).` });
     }
-    
+
     const isWireless = newAp.conexion === 'Inalámbrico';
-    
+
     if (isWireless && !isAdding3thParty && !newAp.rssiBackhaul) {
       return showToast({ type: 'warning', title: 'Falta RSSI', message: 'Si configuras enlace MESH, requieres escribir la señal RSSI del Backhaul.' });
     }
@@ -161,24 +206,25 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     const nameStr = isAdding3thParty
       ? `AP 3th${marcaFinal ? ` (${marcaFinal})` : ''}`
       : 'AP WIN';
-    
+
     setEquipos([...equipos, {
       id: newId,
       nombre: nameStr,
       tipo: 'AP',
-      ...newAp, 
-      serialNumber: isAdding3thParty ? 'NO-ASIGNADO' : newAp.serialNumber,
+      ...newAp,
+      serialNumber: isAdding3thParty ? '' : newAp.serialNumber,
+      marca: isAdding3thParty ? '' : newAp.marca,
       ambienteFinal: ambienteF,
       banda: isWireless ? newAp.banda : null,
       rssiBackhaul: (isWireless && !isAdding3thParty) ? newAp.rssiBackhaul : null,
       esTercero: isAdding3thParty,
-      marcaTercero: isAdding3thParty ? marcaFinal : null
+      marcaTercero: isAdding3thParty ? marcaFinal : ''
     }]);
 
     if (isAdding3thParty) {
       showToast({ type: 'info', title: 'AP de Terceros', message: 'Equipo registrado como referencial (sin gestión WIN).' });
     }
-    
+
     setShowAddModal(false);
   };
 
@@ -200,12 +246,12 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     if (!editingNode.esTercero && editingNode.serialNumber) {
       const snDuplicado = equipos.find(
         e => e.id !== editingNode.id &&
-             e.serialNumber &&
-             e.serialNumber.toUpperCase() === editingNode.serialNumber.toUpperCase()
+          e.serialNumber &&
+          e.serialNumber.toUpperCase() === editingNode.serialNumber.toUpperCase()
       );
       if (snDuplicado) return showToast({ type: 'error', title: 'S/N Duplicado', message: `El S/N "${editingNode.serialNumber}" ya está en uso por "${snDuplicado.nombre}".` });
     }
-    
+
     const isWireless = editingNode.conexion === 'Inalámbrico';
     if (editingNode.tipo === 'AP' && isWireless && !editingNode.esTercero && !editingNode.rssiBackhaul) {
       return showToast({ type: 'warning', title: 'Falta RSSI', message: "Requieres escribir la señal RSSI del Backhaul." });
@@ -217,19 +263,32 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     const checkCircular = editingNode.id === editingNode.parentId;
     if (checkCircular) return showToast({ type: 'error', title: 'Error de Red', message: "Un equipo no puede conectarse a si mismo." });
 
-    setEquipos(equipos.map(e => {
-      if (e.id === editingNode.id) {
-        return {
-          ...e,
-          ...editingNode,
-          ambienteFinal: ambienteF,
-          banda: (editingNode.tipo === 'AP' && isWireless) ? editingNode.banda : null,
-          rssiBackhaul: (editingNode.tipo === 'AP' && isWireless && !editingNode.esTercero) ? editingNode.rssiBackhaul : null
-        };
+    setEquipos(prev => {
+      let updated = prev.map(e => {
+        if (e.id === editingNode.id) {
+          return {
+            ...e,
+            ...editingNode,
+            ambienteFinal: ambienteF,
+            banda: (editingNode.tipo === 'AP' && isWireless) ? editingNode.banda : null,
+            rssiBackhaul: (editingNode.tipo === 'AP' && isWireless && !editingNode.esTercero) ? editingNode.rssiBackhaul : null
+          };
+        }
+        return e;
+      });
+
+      // Si se editó la ONT, sincronizar marca en todos los APs WIN
+      if (editingNode.id === 'ONT') {
+        updated = updated.map(e => {
+          if (e.tipo === 'AP' && !e.esTercero) {
+            return { ...e, marca: editingNode.marca };
+          }
+          return e;
+        });
       }
-      return e;
-    }));
-    
+      return updated;
+    });
+
     setEditingNode(null);
   };
 
@@ -238,7 +297,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
       const children = equipos.filter(e => e.parentId === parentId);
       return children.reduce((acc, child) => [...acc, child.id, ...getChildrenIds(child.id)], []);
     };
-    
+
     const idsToRemove = [id, ...getChildrenIds(id)];
     setEquipos(equipos.filter(e => !idsToRemove.includes(e.id)));
   };
@@ -252,21 +311,21 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
         {hijos.map(hijo => {
           const is3th = hijo.esTercero;
           const styleInfo = (hijo.conexion === 'Inalámbrico' && !is3th) ? getRssiStyle(hijo.rssiBackhaul) : null;
-          
+
           let nodeBorderColor = 'var(--border-color)';
           let nodeBgColor = 'var(--input-bg)';
           let iconBgColor = '#444';
 
           if (is3th) {
-             nodeBorderColor = '#555';
-             nodeBgColor = '#222';
-             iconBgColor = '#555';
+            nodeBorderColor = '#555';
+            nodeBgColor = '#222';
+            iconBgColor = '#555';
           } else if (styleInfo) {
-             nodeBorderColor = styleInfo.color;
-             nodeBgColor = styleInfo.bg;
-             iconBgColor = styleInfo.color;
+            nodeBorderColor = styleInfo.color;
+            nodeBgColor = styleInfo.bg;
+            iconBgColor = styleInfo.color;
           }
-          
+
           let lineClass = 'line-fo';
           if (hijo.conexion === 'Inalámbrico') {
             lineClass = hijo.banda === '5G' ? 'line-5g' : 'line-24g';
@@ -274,7 +333,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
 
           // Badge inalámbrico: texto completo
           const wirelessLabel = hijo.banda === '5G' ? '5G Inalámbrico' : '2.4G Inalámbrico';
-          
+
           return (
             <div key={hijo.id} className="tree-node-container animate-fade-in">
               <div className="node-wrapper">
@@ -285,7 +344,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                     </span>
                   )}
                 </div>
-                
+
                 <div className="node-card" style={{ borderColor: nodeBorderColor, background: nodeBgColor }}>
                   <div className="node-icon ap-icon" style={{ background: iconBgColor }}>
                     {is3th
@@ -303,8 +362,13 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                       </div>
                     )}
                     {!is3th && (
-                      <div style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)'}}>
-                        <Hash size={12}/> S/N: {hijo.serialNumber}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--win-orange)', fontWeight: 'bold' }}>
+                          Marca: {hijo.marca}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          <Hash size={12} /> S/N: {hijo.serialNumber}
+                        </div>
                       </div>
                     )}
                     <span className="node-meta">
@@ -321,7 +385,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                       </span>
                     )}
                   </div>
-                  
+
                   {/* Botonera de Control de Nodo */}
                   <div className={`node-actions ${isExporting ? 'exporting-hide' : ''}`}>
                     <button className="node-action-btn btn-edit" onClick={() => startEditing(hijo)} title="Editar equipo">
@@ -333,7 +397,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                   </div>
                 </div>
               </div>
-              
+
               {renderArbol(hijo.id)}
             </div>
           );
@@ -358,18 +422,18 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
           <h2>Topología de Red</h2>
           <p className="subtitle">Configura y visualiza la distribución de equipos WIN y Terceros</p>
         </div>
-        
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
-          <Button 
-            onClick={() => openAddApPanel(false)} 
+          <Button
+            onClick={() => openAddApPanel(false)}
             disabled={!ontNode || apCount >= 8}
             className={`${isExporting ? 'exporting-hide' : ''}`}
           >
             <Plus size={18} /> Añadir AP WIN
           </Button>
-          <Button 
+          <Button
             variant="secondary"
-            onClick={() => openAddApPanel(true)} 
+            onClick={() => openAddApPanel(true)}
             disabled={!ontNode || apCount >= 8}
             className={`${isExporting ? 'exporting-hide' : ''}`}
             style={{ fontSize: '0.8rem', padding: '0.5rem 1rem' }}
@@ -383,96 +447,108 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
       {editingNode && !isExporting && (
         <div className="add-ap-form glass-panel animate-fade-in" style={{ borderColor: 'var(--text-secondary)' }}>
           <h4 style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-             <Edit2 size={18}/> Editar Registro: {editingNode.nombre}
+            <Edit2 size={18} /> Editar Registro: {editingNode.nombre}
           </h4>
           <div className="form-grid">
-            
+
             {!editingNode.esTercero && (
-              <Input 
-                label="Número de Serie (S/N) (*)" 
-                placeholder="Ej: ALCLB0123456" 
-                value={editingNode.serialNumber}
-                onChange={e => setEditingNode({...editingNode, serialNumber: e.target.value.toUpperCase()})}
-              />
+              <>
+                <Select
+                  label="Marca del Equipo (*)"
+                  value={editingNode.marca}
+                  disabled={editingNode.tipo === 'AP'} // Bloqueado para APs WIN
+                  onChange={e => setEditingNode({ ...editingNode, marca: e.target.value, serialNumber: '' })}
+                  options={[
+                    { label: 'ZTE', value: 'ZTE' },
+                    { label: 'Huawei', value: 'Huawei' }
+                  ]}
+                />
+                <Input
+                  label="Número de Serie (S/N) (*)"
+                  placeholder={editingNode.marca === 'ZTE' ? "Ej: ZTEB01234567890" : "Ej: HUAW012345678901"}
+                  value={editingNode.serialNumber}
+                  onChange={e => handleSNChange(e.target.value, 'edit')}
+                />
+              </>
             )}
-            
-             <Input 
-              label="Piso (*)" 
+
+            <Input
+              label="Piso (*)"
               type="number"
-              placeholder="1 a 5" 
+              placeholder="Ej: 2"
               value={editingNode.piso}
               onChange={e => handlePisoChange(e.target.value, 'edit')}
             />
-            <Select 
-              label="Ambiente (*)" 
+            <Select
+              label="Ambiente (*)"
               value={editingNode.ambiente || 'Sala'}
-              onChange={e => setEditingNode({...editingNode, ambiente: e.target.value})}
+              onChange={e => setEditingNode({ ...editingNode, ambiente: e.target.value })}
               options={listaUbicaciones.map(u => ({ label: u, value: u }))}
             />
             {editingNode.ambiente === 'Otro' && (
-              <Input 
-                label="Nombre del Ambiente" 
-                placeholder="Ej. Sótano"
+              <Input
+                label="Nombre del Ambiente"
+                placeholder="Ej: Sótano"
                 value={editingNode.ambientePersonalizado}
-                onChange={e => setEditingNode({...editingNode, ambientePersonalizado: e.target.value})}
+                onChange={e => setEditingNode({ ...editingNode, ambientePersonalizado: e.target.value })}
               />
             )}
 
             {editingNode.tipo === 'AP' && (
               <>
-                <Select 
-                  label="Conectar desde" 
+                <Select
+                  label="Conectar desde"
                   value={editingNode.parentId}
-                  onChange={e => setEditingNode({...editingNode, parentId: e.target.value})}
+                  onChange={e => setEditingNode({ ...editingNode, parentId: e.target.value })}
                   options={equipos.filter(e => e.id !== editingNode.id).map(e => ({ label: `${e.nombre} (P${e.piso} - ${e.ambienteFinal})`, value: e.id }))}
                 />
-                <Select 
-                  label="Tipo de Conexión" 
+                <Select
+                  label="Tipo de Conexión"
                   value={editingNode.conexion}
-                  onChange={e => setEditingNode({...editingNode, conexion: e.target.value})}
+                  onChange={e => setEditingNode({ ...editingNode, conexion: e.target.value })}
                   options={[
                     { label: 'Cableado (UTP)', value: 'Cableado' },
                     { label: 'Inalámbrico', value: 'Inalámbrico' }
                   ]}
                 />
-                
+
                 {editingNode.conexion === 'Inalámbrico' && (
-                   <>
-                    <Select 
-                      label="Frecuencia Backhaul" 
+                  <>
+                    <Select
+                      label="Frecuencia Backhaul"
                       value={editingNode.banda}
-                      onChange={e => setEditingNode({...editingNode, banda: e.target.value})}
+                      onChange={e => setEditingNode({ ...editingNode, banda: e.target.value })}
                       options={[
                         { label: '5 GHz', value: '5G' },
                         { label: '2.4 GHz', value: '2.4G' }
                       ]}
                     />
-                    
+
                     {!editingNode.esTercero && (
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <Input 
-                          label="RSSI (dBm) (*)" 
+                        <Input
+                          label="RSSI (dBm) (*)"
                           type="number"
-                          placeholder="Ej: -55" 
+                          placeholder="Ej: -55"
                           value={editingNode.rssiBackhaul}
                           onChange={e => handleRssiChange(e.target.value, true)}
                         />
                         {editingNode.rssiBackhaul && <RssiBadge rssiValue={editingNode.rssiBackhaul} />}
                       </div>
                     )}
-                   </>
+                  </>
                 )}
               </>
             )}
 
           </div>
-          <div style={{display: 'flex', gap: '1rem', marginTop: '1rem'}}>
-             <Button style={{ flex: 1, background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} onClick={() => setEditingNode(null)}>
-               Cancelar
-             </Button>
-             <Button style={{ flex: 1, background: 'var(--text-secondary)', color: 'white', borderColor: 'var(--text-secondary)' }} onClick={handleUpdateNode}>
-               Actualizar Equipo
-             </Button>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+            <Button style={{ flex: 1, background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} onClick={() => setEditingNode(null)}>
+              Cancelar
+            </Button>
+            <Button style={{ flex: 1, background: 'var(--text-secondary)', color: 'white', borderColor: 'var(--text-secondary)' }} onClick={handleUpdateNode}>
+              Actualizar Equipo
+            </Button>
           </div>
         </div>
       )}
@@ -482,31 +558,40 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
         <div className="add-ap-form glass-panel animate-fade-in" style={{ borderColor: 'var(--win-orange)' }}>
           <h4 style={{ color: 'var(--win-orange)' }}>Paso 1: Configurar ONT Base</h4>
           <div className="form-grid">
-            <Input 
-              label="Número de Serie (S/N) (*)" 
-              placeholder="Ej: ALCLB0123456" 
-              value={newOnt.serialNumber}
-              onChange={e => setNewOnt({...newOnt, serialNumber: e.target.value.toUpperCase()})}
+            <Select
+              label="Marca del Equipo (*)"
+              value={newOnt.marca}
+              onChange={e => setNewOnt({ ...newOnt, marca: e.target.value, serialNumber: '' })}
+              options={[
+                { label: 'ZTE', value: 'ZTE' },
+                { label: 'Huawei', value: 'Huawei' }
+              ]}
             />
-             <Input 
-              label="Piso (*)" 
+            <Input
+              label="Número de Serie (S/N) (*)"
+              placeholder={newOnt.marca === 'ZTE' ? "Ej: ZTEB01234567890" : "Ej: HUAW012345678901"}
+              value={newOnt.serialNumber}
+              onChange={e => handleSNChange(e.target.value, 'ont')}
+            />
+            <Input
+              label="Piso (*)"
               type="number"
-              placeholder="1 a 5" 
+              placeholder="Ej: 1"
               value={newOnt.piso}
               onChange={e => handlePisoChange(e.target.value, 'ont')}
             />
-            <Select 
-              label="Ambiente (*)" 
+            <Select
+              label="Ambiente (*)"
               value={newOnt.ambiente}
-              onChange={e => setNewOnt({...newOnt, ambiente: e.target.value})}
+              onChange={e => setNewOnt({ ...newOnt, ambiente: e.target.value })}
               options={listaUbicaciones.map(u => ({ label: u, value: u }))}
             />
             {newOnt.ambiente === 'Otro' && (
-              <Input 
-                label="Nombre del Ambiente" 
-                placeholder="Ej. Sótano"
+              <Input
+                label="Nombre del Ambiente"
+                placeholder="Ej: Azotea"
                 value={newOnt.ambientePersonalizado}
-                onChange={e => setNewOnt({...newOnt, ambientePersonalizado: e.target.value})}
+                onChange={e => setNewOnt({ ...newOnt, ambientePersonalizado: e.target.value })}
               />
             )}
           </div>
@@ -531,15 +616,27 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
             </div>
           )}
           <div className="form-grid">
-            
+
             {/* Solo pedir SN si no es tercero */}
             {!isAdding3thParty && (
-              <Input 
-                label="Número de Serie (S/N) (*)" 
-                placeholder="Ej: ZTTEB0123456" 
-                value={newAp.serialNumber}
-                onChange={e => setNewAp({...newAp, serialNumber: e.target.value.toUpperCase()})}
-              />
+              <>
+                <Select
+                  label="Marca del Equipo"
+                  value={newAp.marca}
+                  disabled={true} // Siempre bloqueado para AP WIN nuevo
+                  onChange={e => setNewAp({ ...newAp, marca: e.target.value, serialNumber: '' })}
+                  options={[
+                    { label: 'ZTE', value: 'ZTE' },
+                    { label: 'Huawei', value: 'Huawei' }
+                  ]}
+                />
+                <Input
+                  label="Número de Serie (S/N) (*)"
+                  placeholder={newAp.marca === 'ZTE' ? "Ej: ZTEB01234567890" : "Ej: HUAW012345678901"}
+                  value={newAp.serialNumber}
+                  onChange={e => handleSNChange(e.target.value, 'ap')}
+                />
+              </>
             )}
 
             {/* Campo de marca solo para AP de terceros */}
@@ -557,7 +654,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                 {marcaTercero === 'Otro' && (
                   <Input
                     label="Especificar Marca"
-                    placeholder="Ej: Ruijie, ZTE..."
+                    placeholder="Ej: Ruijie"
                     value={marcaTerceroCustom}
                     onChange={e => setMarcaTerceroCustom(e.target.value)}
                   />
@@ -565,79 +662,79 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
               </>
             )}
 
-             <Input 
-              label="Piso (*)" 
+            <Input
+              label="Piso (*)"
               type="number"
-              placeholder="1 a 5" 
+              placeholder="Ej: 1"
               value={newAp.piso}
               onChange={e => handlePisoChange(e.target.value, 'ap')}
             />
-            <Select 
-              label="Ambiente (*)" 
+            <Select
+              label="Ambiente (*)"
               value={newAp.ambiente}
-              onChange={e => setNewAp({...newAp, ambiente: e.target.value})}
+              onChange={e => setNewAp({ ...newAp, ambiente: e.target.value })}
               options={listaUbicaciones.map(u => ({ label: u, value: u }))}
             />
             {newAp.ambiente === 'Otro' && (
-              <Input 
-                label="Nombre del Ambiente" 
-                placeholder="Ej. Pasillo 2do piso"
+              <Input
+                label="Nombre del Ambiente"
+                placeholder="Ej: Pasillo"
                 value={newAp.ambientePersonalizado}
-                onChange={e => setNewAp({...newAp, ambientePersonalizado: e.target.value})}
+                onChange={e => setNewAp({ ...newAp, ambientePersonalizado: e.target.value })}
               />
             )}
 
-            <Select 
-              label="Conectar desde" 
+            <Select
+              label="Conectar desde"
               value={newAp.parentId}
-              onChange={e => setNewAp({...newAp, parentId: e.target.value})}
+              onChange={e => setNewAp({ ...newAp, parentId: e.target.value })}
               options={equipos.map(e => ({ label: `${e.nombre} (P${e.piso} - ${e.ambienteFinal})`, value: e.id }))}
             />
-            <Select 
-              label="Tipo de Conexión" 
+            <Select
+              label="Tipo de Conexión"
               value={newAp.conexion}
-              onChange={e => setNewAp({...newAp, conexion: e.target.value})}
+              onChange={e => setNewAp({ ...newAp, conexion: e.target.value })}
               options={[
                 { label: 'Cableado (UTP)', value: 'Cableado' },
                 { label: 'Inalámbrico', value: 'Inalámbrico' }
               ]}
             />
-            
+
             {newAp.conexion === 'Inalámbrico' && (
-               <>
-                <Select 
-                  label="Frecuencia Backhaul" 
+              <>
+                <Select
+                  label="Frecuencia Backhaul"
                   value={newAp.banda}
-                  onChange={e => setNewAp({...newAp, banda: e.target.value})}
+                  onChange={e => setNewAp({ ...newAp, banda: e.target.value })}
                   options={[
                     { label: '5 GHz', value: '5G' },
                     { label: '2.4 GHz', value: '2.4G' }
                   ]}
                 />
-                
+
                 {/* RSSI solo si no es tercero */}
                 {!isAdding3thParty && (
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <Input 
-                      label="RSSI Backhaul (dBm) (*)" 
+                    <Input
+                      label="RSSI Backhaul (dBm) (*)"
                       type="number"
-                      placeholder="Ej: -55" 
+                      placeholder="Ej: -55"
                       value={newAp.rssiBackhaul}
                       onChange={e => handleRssiChange(e.target.value, false)}
                     />
                     {newAp.rssiBackhaul && <RssiBadge rssiValue={newAp.rssiBackhaul} />}
                   </div>
                 )}
-               </>
+              </>
             )}
           </div>
-          <div style={{display: 'flex', gap: '1rem', marginTop: '1rem'}}>
-             <Button style={{ flex: 1, background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} onClick={() => setShowAddModal(false)}>
-               Cancelar
-             </Button>
-             <Button style={{ flex: 1, background: isAdding3thParty ? '#555' : 'var(--win-blue-light)', color: 'white', borderColor: isAdding3thParty ? '#555' : 'var(--win-blue-light)' }} onClick={handleAddAp}>
-               Guardar Equipo
-             </Button>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+            <Button style={{ flex: 1, background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} onClick={() => setShowAddModal(false)}>
+              Cancelar
+            </Button>
+            <Button style={{ flex: 1, background: isAdding3thParty ? '#555' : 'var(--win-blue-light)', color: 'white', borderColor: isAdding3thParty ? '#555' : 'var(--win-blue-light)' }} onClick={handleAddAp}>
+              Guardar Equipo
+            </Button>
           </div>
         </div>
       )}
@@ -692,15 +789,20 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                   </div>
                   <div className="node-info">
                     <strong>{ontNode.nombre}</strong>
-                    <div style={{display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', opacity: 0.8}}>
-                      <Hash size={12}/> S/N: {ontNode.serialNumber}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px' }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--win-orange)', fontWeight: 'bold' }}>
+                        Marca: {ontNode.marca}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', opacity: 0.8 }}>
+                        <Hash size={12} /> S/N: {ontNode.serialNumber}
+                      </div>
                     </div>
                     <span className="node-meta">Raíz de Conexión</span>
                     <div className="node-location-badge">
                       P{ontNode.piso} - {ontNode.ambienteFinal}
                     </div>
                   </div>
-                  
+
                   {/* Botonera Edición de Raíz */}
                   <div className={`node-actions ${isExporting ? 'exporting-hide' : ''}`}>
                     <button className="node-action-btn btn-edit" onClick={() => startEditing(ontNode)} title="Editar equipo">

@@ -141,7 +141,7 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
               <div className="medicion-fields-grid">
                 <Input 
                   label="Serial Number (S/N) (*)" 
-                  placeholder="Ej: WINBOX-XX123" 
+                  placeholder="Ej: WBX01234567" 
                   value={w.serialNumber}
                   onChange={e => updateWinbox(w.id, 'serialNumber', e.target.value.toUpperCase())}
                   disabled={readonly}
@@ -158,7 +158,7 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
                 {w.ubicacion === 'Otro' && (
                   <Input 
                     label="Nombre Ambiente" 
-                    placeholder="Ej. Cuarto de Juegos"
+                    placeholder="Ej: Sala de Estar"
                     value={w.ubicacionPersonalizada}
                     onChange={e => updateWinbox(w.id, 'ubicacionPersonalizada', e.target.value)}
                     disabled={readonly}
@@ -223,7 +223,7 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
                      <Input 
                       label="Velocidad (Mbps) (*)" 
                       type="number"
-                      placeholder="Ej: 150" 
+                      placeholder="Ej: 300" 
                       value={w.velocidad}
                       onChange={e => handleVelocidadChange(w.id, e.target.value)}
                       disabled={readonly}

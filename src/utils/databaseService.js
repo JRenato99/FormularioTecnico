@@ -23,7 +23,7 @@ export const getDraft = (codigoCliente) => {
   }
 };
 
-const clearDraft = (codigoCliente) => {
+export const clearDraft = (codigoCliente) => {
   try {
     const drafts = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}');
     delete drafts[codigoCliente];

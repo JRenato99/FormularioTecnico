@@ -126,7 +126,7 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
                 {t.ubicacion === 'Otro' && (
                   <Input 
                     label="Nombre Ambiente" 
-                    placeholder="Ej. Cuarto de Juegos"
+                    placeholder="Ej: Sala de Estar"
                     value={t.ubicacionPersonalizada}
                     onChange={e => updateTelevisor(t.id, 'ubicacionPersonalizada', e.target.value)}
                     disabled={readonly}

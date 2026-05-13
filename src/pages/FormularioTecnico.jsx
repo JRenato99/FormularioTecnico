@@ -10,7 +10,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { Download, CheckCircle, FileSpreadsheet, Save, X, Globe, Tv, Router as RouterIcon, Send } from 'lucide-react';
 import { getRssiStyle, UBICACIONES } from '../utils/constants';
-import { getDraft, saveDraft, saveOrder } from '../utils/databaseService';
+import { getDraft, saveDraft, saveOrder, clearDraft } from '../utils/databaseService';
 import { useUI } from '../components/ui/Modal.jsx';
 import './FormularioTecnico.css';
 
@@ -322,6 +322,18 @@ const FormularioTecnico = () => {
     }
   };
 
+  const handleCancelar = () => {
+    showModal({
+      type: 'warning',
+      title: 'Cancelar Registro',
+      message: '¿Estás seguro que deseas cancelar? Se perderán todos los datos ingresados en este formulario y no se guardará ningún borrador.',
+      onConfirm: () => {
+        clearDraft(codigoCliente);
+        navigate('/buscar');
+      }
+    });
+  };
+
   const doDescargarCSV = () => {
     // Generar el CSV al vuelo para evitar descargar un archivo vacío
     const freshCSV = generateCSVContent();
@@ -408,9 +420,12 @@ const FormularioTecnico = () => {
           Los campos marcados con <strong style={{ color: 'var(--win-orange)' }}>(*)</strong> son obligatorios.
         </p>
 
-        <div style={{ marginTop: '2rem', textAlign: 'center', marginBottom: '3rem' }}>
-           <Button variant="primary" style={{ padding: '1rem 3rem', fontSize: '1.1rem' }} onClick={handlePreFinalizar}>
-             <Save size={20} style={{ marginRight: '0.5rem' }}/> Finalizar y Enviar Trabajo
+        <div className="dashboard-actions-container">
+           <Button variant="secondary" className="dashboard-btn-large" onClick={handleCancelar}>
+             <X size={20} /> Cancelar
+           </Button>
+           <Button variant="primary" className="dashboard-btn-large" onClick={handlePreFinalizar}>
+             <Save size={20} /> Finalizar y Enviar Trabajo
            </Button>
         </div>
 

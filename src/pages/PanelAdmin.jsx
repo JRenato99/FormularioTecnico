@@ -470,13 +470,14 @@ const PanelAdmin = () => {
                               <table className="detail-table">
                                 <thead>
                                   <tr>
-                                    <th>Equipo</th><th>Tipo</th><th>S/N</th><th>Ambiente</th><th>Piso</th><th>Conexión</th><th>3ro</th>
+                                    <th>Equipo</th><th>Marca</th><th>Tipo</th><th>S/N</th><th>Ambiente</th><th>Piso</th><th>Conexión</th><th>3ro</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {orden.equipos.map((eq, i) => (
                                     <tr key={i}>
                                       <td>{eq.nombre}</td>
+                                      <td>{eq.marca || eq.marcaTercero || '—'}</td>
                                       <td>{eq.tipo}</td>
                                       <td style={{ fontFamily: 'monospace' }}>{eq.serialNumber || '—'}</td>
                                       <td>{eq.ambienteFinal || eq.ubicacion || '—'}</td>
