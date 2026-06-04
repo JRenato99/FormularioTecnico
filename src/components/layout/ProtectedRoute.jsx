@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { supabase } from '../../utils/supabaseClient';
+import { bootstrapSession } from '../../utils/authService';
 
 /**
  * ProtectedRoute
@@ -14,30 +14,17 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   useEffect(() => {
     const checkSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error || !session) {
+      // bootstrapSession valida el JWT firmado de Supabase y reconstruye el
+      // perfil (rol) desde win_users. El rol viene SIEMPRE de la BD, no de
+      // metadata manipulable. Además deja el caché listo para getSession().
+      const profile = await bootstrapSession();
+
+      if (!profile) {
         setIsAuthenticated(false);
-        localStorage.removeItem('win_session'); // Limpiar espejo inseguro
         return;
       }
 
-      // El rol se extrae de la metadata del token de Supabase (seguro)
-      // o consultando la tabla win_users si no está en el token
-      const role = session.user?.user_metadata?.role;
-      
-      if (!role) {
-        // Fallback: Consultar BD si el rol no está en la metadata
-        const { data: profile } = await supabase
-          .from('win_users')
-          .select('role')
-          .eq('id', session.user.id)
-          .single();
-        setUserRole(profile?.role || 'TECNICO');
-      } else {
-        setUserRole(role);
-      }
-      
+      setUserRole(profile.role);
       setIsAuthenticated(true);
     };
 

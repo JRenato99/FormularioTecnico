@@ -25,6 +25,29 @@ function jsonError(message: string, status = 400) {
   })
 }
 
+// Busca un usuario en auth.users por email recorriendo TODAS las páginas.
+// listUsers() devuelve solo 50 registros por defecto, por lo que sin paginar
+// fallaría con "User not found" en cualquier sistema con más de 50 usuarios.
+async function findAuthUserByEmail(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  email: string,
+) {
+  const perPage = 1000
+  let page = 1
+  while (true) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage })
+    if (error) throw error
+
+    const found = data?.users?.find((u: { email?: string }) => u.email === email)
+    if (found) return found
+
+    // Si la página vino incompleta, ya no hay más usuarios que recorrer.
+    if (!data?.users || data.users.length < perPage) return null
+    page++
+  }
+}
+
 Deno.serve(async (req) => {
   // Manejar preflight CORS (necesario para que el navegador permita la petición)
   if (req.method === 'OPTIONS') {
@@ -96,11 +119,8 @@ Deno.serve(async (req) => {
     if (body.action === 'delete') {
       if (!body.email) return jsonError('Missing email for delete')
 
-      // Buscar al usuario por email en auth.users
-      const { data: listData, error: listErr } = await supabase.auth.admin.listUsers()
-      if (listErr) throw listErr
-
-      const targetUser = listData?.users?.find(u => u.email === body.email)
+      // Buscar al usuario por email en auth.users (paginado, soporta >50 usuarios)
+      const targetUser = await findAuthUserByEmail(supabase, body.email)
       if (!targetUser) return jsonError('User not found in auth.users', 404)
 
       // Eliminar de auth.users (win_users se borra por CASCADE si está configurado)

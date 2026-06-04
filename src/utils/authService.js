@@ -1,7 +1,22 @@
 import { supabase } from './supabaseClient';
 
-const KEY_SESSION  = 'win_session';
 const KEY_NOTIFS   = 'win_notificaciones';
+
+// ─── Caché de sesión EN MEMORIA ──────────────────────────────────────────────
+// La sesión ya NO se guarda en localStorage. Antes existía un "espejo" en
+// localStorage (win_session) que cualquiera podía falsificar desde DevTools
+// (p. ej. inyectar role: 'ADMINISTRADOR'). Ahora la sesión vive solo en memoria
+// y se reconstruye desde el JWT FIRMADO de Supabase + el perfil real en win_users,
+// que no son manipulables por el cliente.
+let _session = null;
+
+// Limpieza de migración: borrar el espejo inseguro si quedó de versiones previas.
+try { localStorage.removeItem('win_session'); } catch { /* noop */ }
+
+// Mantener el caché sincronizado cuando Supabase cierra la sesión.
+supabase.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT') _session = null;
+});
 
 // ─── Validadores ───────────────────────────────────────────────────────────────
 export const isValidEmail = (email) =>
@@ -89,8 +104,42 @@ export const contarNotificacionesNoLeidas = async (tecnicoEmail) => {
 };
 
 // ─── Sesión ────────────────────────────────────────────────────────────────────
-export const getSession = () => {
-  try { return JSON.parse(localStorage.getItem(KEY_SESSION) || 'null'); } catch { return null; }
+// Acceso SÍNCRONO al perfil de la sesión actual. Devuelve null si aún no se
+// hidrató (ver bootstrapSession). Los componentes protegidos se montan dentro de
+// ProtectedRoute, que llama a bootstrapSession antes de renderizarlos, por lo que
+// para ellos getSession() ya tiene datos.
+export const getSession = () => _session;
+
+/**
+ * Reconstruye el caché de sesión en memoria a partir del JWT válido de Supabase
+ * y el perfil real en win_users. Se invoca al arrancar/navegar (ProtectedRoute)
+ * para que la sesión sobreviva a recargas de página sin depender de localStorage.
+ * Retorna el perfil o null si no hay sesión válida.
+ */
+export const bootstrapSession = async () => {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session) { _session = null; return null; }
+
+  // Si ya tenemos en caché el perfil de este mismo usuario, lo reutilizamos
+  // (el JWT ya quedó validado arriba) para evitar una consulta extra por navegación.
+  if (_session && _session.id === session.user.id) return _session;
+
+  const { data: profile, error: profileError } = await supabase
+    .from('win_users')
+    .select('id, email, role, cuadrilla, nombre')
+    .eq('id', session.user.id)
+    .single();
+
+  if (profileError || !profile) { _session = null; return null; }
+
+  _session = {
+    id: profile.id,
+    email: profile.email,
+    role: profile.role,
+    cuadrilla: profile.cuadrilla,
+    nombre: profile.nombre,
+  };
+  return _session;
 };
 
 export const initDefaultUsers = () => {};
@@ -131,7 +180,8 @@ export const login = async (email, password, cuadrilla = '') => {
     }
   }
 
-  // Guardar espejo de sesión en localStorage para guards de React Router
+  // Poblar el caché de sesión EN MEMORIA (sin localStorage). Los guards de
+  // React Router (ProtectedRoute) validan el JWT de Supabase, no este objeto.
   const session = {
     id: userProfile.id,
     email: userProfile.email,
@@ -139,7 +189,7 @@ export const login = async (email, password, cuadrilla = '') => {
     cuadrilla: userProfile.cuadrilla,
     nombre: userProfile.nombre
   };
-  localStorage.setItem(KEY_SESSION, JSON.stringify(session));
+  _session = session;
   await addAuditLog('LOGIN', 'SESION', email);
 
   return {
@@ -152,7 +202,7 @@ export const login = async (email, password, cuadrilla = '') => {
 // ─── LOGOUT ───────────────────────────────────────────────────────────────────
 export const logout = async () => {
   await addAuditLog('LOGOUT', 'SESION', getSession()?.email || '');
-  localStorage.removeItem(KEY_SESSION);
+  _session = null;
   await supabase.auth.signOut();
 };
 
