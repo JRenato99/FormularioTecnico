@@ -1,11 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { X, Camera } from 'lucide-react';
 import './BarcodeScanner.css';
 
 /**
- * Escáner de código de barras con vista previa y recuadro guía.
- * Detecta automáticamente al posicionar el código sobre el recuadro.
+ * Escáner de código de barras con vista previa.
  *
  * Props:
  *  - onResult(text): callback con el texto detectado
@@ -20,39 +19,68 @@ const BarcodeScanner = ({ onResult, onClose, title = 'Escanear código de barras
 
   useEffect(() => {
     let cancelled = false;
-    const html5Qr = new Html5Qrcode(containerId, { verbose: false });
+
+    // Formatos esperables en etiquetas de equipos (ONT, AP, WINBOX)
+    const formats = [
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.CODE_93,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.ITF,
+      Html5QrcodeSupportedFormats.CODABAR,
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.DATA_MATRIX
+    ];
+
+    const html5Qr = new Html5Qrcode(containerId, {
+      verbose: false,
+      formatsToSupport: formats,
+      // Usar BarcodeDetector nativo del browser si está disponible (mucho más rápido)
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+    });
     scannerRef.current = html5Qr;
 
     const config = {
-      fps: 10,
-      // qrbox dinámico — recorta la zona de detección al centro
-      qrbox: (viewW, viewH) => {
-        const min = Math.min(viewW, viewH);
-        const boxW = Math.floor(min * 0.85);
-        const boxH = Math.floor(boxW * 0.45);
-        return { width: boxW, height: boxH };
-      },
-      aspectRatio: 1.5,
+      fps: 15,
+      // qrbox=undefined → procesa todo el viewport de la cámara (no recorta)
+      aspectRatio: window.innerWidth < window.innerHeight ? 0.75 : 1.5,
       disableFlip: false
     };
 
     const handleSuccess = (decodedText) => {
       if (cancelled) return;
+      // Pequeño beep nativo si está disponible
+      try {
+        if (navigator.vibrate) navigator.vibrate(100);
+      } catch (_) {}
       onResult(decodedText.trim());
     };
 
-    html5Qr
-      .start({ facingMode: { exact: 'environment' } }, config, handleSuccess, () => {})
-      .catch(() => {
+    const tryStart = async () => {
+      try {
+        await html5Qr.start({ facingMode: { exact: 'environment' } }, config, handleSuccess, () => {});
+        if (!cancelled) setStarting(false);
+      } catch (e1) {
         if (cancelled) return;
-        html5Qr
-          .start({ facingMode: 'environment' }, config, handleSuccess, () => {})
-          .then(() => setStarting(false))
-          .catch((err) => {
-            if (!cancelled) setError(err?.message || 'No se pudo acceder a la cámara.');
-          });
-      })
-      .then(() => { if (!cancelled) setStarting(false); });
+        try {
+          await html5Qr.start({ facingMode: 'environment' }, config, handleSuccess, () => {});
+          if (!cancelled) setStarting(false);
+        } catch (e2) {
+          if (cancelled) return;
+          try {
+            await html5Qr.start(true, config, handleSuccess, () => {});
+            if (!cancelled) setStarting(false);
+          } catch (e3) {
+            if (!cancelled) setError(e3?.message || 'No se pudo acceder a la cámara.');
+          }
+        }
+      }
+    };
+
+    tryStart();
 
     return () => {
       cancelled = true;
@@ -76,17 +104,6 @@ const BarcodeScanner = ({ onResult, onClose, title = 'Escanear código de barras
 
         <div className="scanner-region-wrapper">
           <div id={containerId} className="scanner-region" />
-
-          {/* Marco guía visual con las 4 esquinas */}
-          {!error && (
-            <div className="scanner-guide">
-              <div className="corner top-left"></div>
-              <div className="corner top-right"></div>
-              <div className="corner bottom-left"></div>
-              <div className="corner bottom-right"></div>
-              <div className="scanner-laser"></div>
-            </div>
-          )}
         </div>
 
         <div className="scanner-hint">
@@ -94,7 +111,7 @@ const BarcodeScanner = ({ onResult, onClose, title = 'Escanear código de barras
             ? <span style={{ color: '#ff6b6b' }}>⚠️ {error}</span>
             : starting
               ? 'Iniciando cámara...'
-              : 'Posiciona el código de barras dentro del recuadro'}
+              : 'Acerca el código de barras a la cámara hasta que enfoque'}
         </div>
       </div>
     </div>
