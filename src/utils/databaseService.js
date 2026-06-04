@@ -166,11 +166,20 @@ export const getOrders = async () => {
   }));
 };
 
+// Estados válidos para una orden. Cualquier otro valor se rechaza antes de
+// tocar la base de datos (defensa en profundidad; idealmente reforzado además
+// con un CHECK constraint en la columna estado de win_orders).
+export const ESTADOS_ORDEN_VALIDOS = ['PENDIENTE', 'APROBADO', 'RECHAZADO'];
+
 // Acepta un motivo opcional para persistir el rechazo en Supabase
 export const updateOrderStatus = async (codigoCliente, nuevoEstado, motivo = '') => {
-  const updatePayload = { 
-    estado: nuevoEstado, 
-    updated_at: new Date().toISOString() 
+  if (!ESTADOS_ORDEN_VALIDOS.includes(nuevoEstado)) {
+    return { success: false, error: `Estado inválido: "${nuevoEstado}".` };
+  }
+
+  const updatePayload = {
+    estado: nuevoEstado,
+    updated_at: new Date().toISOString()
   };
 
   // Si hay motivo de rechazo, lo persistimos directamente en la fila de la orden

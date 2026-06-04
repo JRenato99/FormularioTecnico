@@ -7,7 +7,7 @@
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { corsHeaders } from '../_shared/cors.ts'
+import { corsHeadersFor } from '../_shared/cors.ts'
 
 type ManageUserAction = 'create' | 'delete'
 
@@ -18,7 +18,7 @@ type Payload = {
   role?: string
 }
 
-function jsonError(message: string, status = 400) {
+function jsonError(message: string, corsHeaders: Record<string, string>, status = 400) {
   return new Response(JSON.stringify({ error: message }), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -49,6 +49,8 @@ async function findAuthUserByEmail(
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req)
+
   // Manejar preflight CORS (necesario para que el navegador permita la petición)
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -57,10 +59,10 @@ Deno.serve(async (req) => {
   try {
     // 1. Extraer y validar el token JWT del caller
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) return jsonError('Missing Authorization header', 401)
+    if (!authHeader) return jsonError('Missing Authorization header', corsHeaders, 401)
 
     const token = authHeader.replace(/^Bearer\s+/i, '')
-    if (!token) return jsonError('Missing Bearer token', 401)
+    if (!token) return jsonError('Missing Bearer token', corsHeaders, 401)
 
     // 2. Crear cliente Supabase con SERVICE_ROLE_KEY (acceso total)
     const supabase = createClient(
@@ -73,7 +75,7 @@ Deno.serve(async (req) => {
 
     // 3. Verificar que el caller sea un usuario válido y obtener su info
     const { data: { user: callerUser }, error: userError } = await supabase.auth.getUser(token)
-    if (userError || !callerUser) return jsonError('Invalid or expired JWT', 401)
+    if (userError || !callerUser) return jsonError('Invalid or expired JWT', corsHeaders, 401)
 
     // 4. Verificar que el caller tenga rol ADMINISTRADOR en win_users
     const { data: callerProfile, error: profileError } = await supabase
@@ -82,19 +84,19 @@ Deno.serve(async (req) => {
       .eq('id', callerUser.id)
       .single()
     
-    if (profileError || !callerProfile) return jsonError('User profile not found', 403)
+    if (profileError || !callerProfile) return jsonError('User profile not found', corsHeaders, 403)
     if (callerProfile.role !== 'ADMINISTRADOR') {
-      return jsonError('Forbidden: solo ADMINISTRADOR puede gestionar usuarios', 403)
+      return jsonError('Forbidden: solo ADMINISTRADOR puede gestionar usuarios', corsHeaders, 403)
     }
 
     // 5. Procesar la acción solicitada
     const body = (await req.json()) as Payload
-    if (!body?.action) return jsonError('Missing action')
+    if (!body?.action) return jsonError('Missing action', corsHeaders)
 
     // ─── CREAR USUARIO ──────────────────────────────────────────────
     if (body.action === 'create') {
       if (!body.email || !body.password || !body.role) {
-        return jsonError('Missing email, password, or role')
+        return jsonError('Missing email, password, or role', corsHeaders)
       }
 
       // Crear en auth.users con la service_role_key
@@ -117,11 +119,11 @@ Deno.serve(async (req) => {
 
     // ─── ELIMINAR USUARIO ───────────────────────────────────────────
     if (body.action === 'delete') {
-      if (!body.email) return jsonError('Missing email for delete')
+      if (!body.email) return jsonError('Missing email for delete', corsHeaders)
 
       // Buscar al usuario por email en auth.users (paginado, soporta >50 usuarios)
       const targetUser = await findAuthUserByEmail(supabase, body.email)
-      if (!targetUser) return jsonError('User not found in auth.users', 404)
+      if (!targetUser) return jsonError('User not found in auth.users', corsHeaders, 404)
 
       // Eliminar de auth.users (win_users se borra por CASCADE si está configurado)
       const { error: delErr } = await supabase.auth.admin.deleteUser(targetUser.id)
@@ -133,10 +135,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    return jsonError('Invalid action. Use "create" or "delete"')
+    return jsonError('Invalid action. Use "create" or "delete"', corsHeaders)
 
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
-    return jsonError(message, 500)
+    return jsonError(message, corsHeaders, 500)
   }
 })

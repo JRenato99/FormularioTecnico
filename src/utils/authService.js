@@ -36,16 +36,29 @@ const validatePassword = (password) => {
 
 export const addAuditLog = async (accion, recursoTipo = '', recursoId = '', detalle = {}) => {
   const session = getSession();
-  supabase.from('win_audit_logs').insert([{
-    actor_id: session?.id || null,
-    accion,
-    entidad_afectada: recursoTipo,
-    entidad_id: recursoId,
-    descripcion: `${session?.email || 'SISTEMA'} ejecutó ${accion}`,
-    new_data: detalle
-  }]).then(({ error }) => {
-    if (error) console.error('Failed to log audit event', error);
-  });
+  // Esperamos (await) la escritura del log y manejamos el error explícitamente.
+  // Antes era "fire-and-forget": si Supabase fallaba, el registro de auditoría
+  // se perdía en silencio. Ahora devolvemos { ok } para que quien lo necesite
+  // pueda reaccionar a un fallo de auditoría sin romper la acción principal.
+  try {
+    const { error } = await supabase.from('win_audit_logs').insert([{
+      actor_id: session?.id || null,
+      accion,
+      entidad_afectada: recursoTipo,
+      entidad_id: recursoId,
+      descripcion: `${session?.email || 'SISTEMA'} ejecutó ${accion}`,
+      new_data: detalle
+    }]);
+
+    if (error) {
+      console.error('Fallo al registrar evento de auditoría:', error.code || error.message);
+      return { ok: false, error };
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error('Error inesperado registrando auditoría:', e?.message || e);
+    return { ok: false, error: e };
+  }
 };
 
 // ─── Notificaciones (Supabase Realtime) ──────────────────────────────────

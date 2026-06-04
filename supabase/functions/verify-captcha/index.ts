@@ -1,7 +1,9 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
-import { corsHeaders } from '../_shared/cors.ts'
+import { corsHeadersFor } from '../_shared/cors.ts'
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req)
+
   // Manejo de CORS preflight request
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -47,10 +49,12 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     } else {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: 'Failed reCAPTCHA validation', 
-        details: data 
+      // No exponemos los detalles internos de Google al cliente (M-01),
+      // solo los registramos del lado del servidor para diagnóstico.
+      console.error('reCAPTCHA validation failed:', JSON.stringify(data))
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Failed reCAPTCHA validation',
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
