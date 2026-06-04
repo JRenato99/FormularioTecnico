@@ -420,7 +420,11 @@ entrypoint = "./functions/manager-user/index.ts"
 
 [functions.verify-captcha]
 enabled = true
-verify_jwt = true
+# verify-captcha se invoca ANTES del login (usuario anónimo, sin JWT de sesión).
+# Con la anon/publishable key nueva (sb_publishable_...) que no es un JWT, dejar
+# verify_jwt = true hace que el gateway devuelva 401. Debe quedar en false; la
+# función igual valida el token de reCAPTCHA contra Google.
+verify_jwt = false
 import_map = "./functions/verify-captcha/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
