@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Input, Button, Select } from '../components/ui';
 import { Wifi, ArrowRight, ShieldCheck, AlertCircle, Eye, EyeOff, Key, CheckCircle } from 'lucide-react';
-import { login, getSession, isValidEmail, changePassword } from '../utils/authService';
+import { login, getSession, bootstrapSession, isValidEmail, changePassword } from '../utils/authService';
 import { useUI } from '../components/ui/Modal.jsx';
 import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { supabase } from '../utils/supabaseClient';
@@ -52,12 +52,15 @@ const Login = () => {
     { label: 'Otro (Especificar)', value: 'Otro' }
   ];
 
-  // Redirigir si ya tiene sesión activa
+  // Redirigir si ya tiene sesión activa. Usamos bootstrapSession (async) porque
+  // la sesión ya no se espeja en localStorage: se reconstruye desde el JWT real
+  // de Supabase, que sí persiste entre recargas.
   useEffect(() => {
-    const session = getSession();
-    if (session) {
-      navigate(session.role === 'TECNICO' ? '/buscar' : '/admin');
-    }
+    bootstrapSession().then((session) => {
+      if (session) {
+        navigate(session.role === 'TECNICO' ? '/buscar' : '/admin');
+      }
+    });
   }, [navigate]);
 
   const handleEmailBlur = () => {
@@ -104,12 +107,9 @@ const Login = () => {
       }
 
       if (!data?.success) {
-        // Extraer los códigos de error de Google
-        const errorCodes = data?.details?.['error-codes'] || [];
-        if (errorCodes.includes('invalid-input-response')) {
-          throw new Error('Dominio no autorizado. Si estás en localhost, añádelo en tu consola de Google reCAPTCHA.');
-        }
-        throw new Error(`Google rechazó la solicitud: ${errorCodes.join(', ')}`);
+        // El backend ya no expone los detalles internos de Google (M-01).
+        // Mostramos un mensaje claro y genérico al usuario.
+        throw new Error('No se pudo validar la verificación de seguridad. Recarga la página e intenta de nuevo.');
       }
 
       // Validar score de humano (mayor a 0.5)
