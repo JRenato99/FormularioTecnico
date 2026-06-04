@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
-import { Plus, Trash2, Router, Wifi, Hash, Edit2, ShieldAlert, Network, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Router, Wifi, Hash, Edit2, ShieldAlert, Network, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useUI } from '../ui/Modal.jsx';
+import ScanSnButton from '../ui/ScanSnButton';
 import { LEYENDA, getRssiStyle } from '../../utils/constants';
 import './Topologia.css';
 
@@ -14,6 +15,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddOnt, setShowAddOnt] = useState(false);
   const [editingNode, setEditingNode] = useState(null);
+  const [leyendaColapsada, setLeyendaColapsada] = useState(false);
 
   // Bandera para diferenciar AP tipo WIN de tipo Tercero (3th)
   const [isAdding3thParty, setIsAdding3thParty] = useState(false);
@@ -317,9 +319,9 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
           let iconBgColor = '#444';
 
           if (is3th) {
-            nodeBorderColor = '#555';
-            nodeBgColor = '#222';
-            iconBgColor = '#555';
+            nodeBorderColor = 'var(--border-color)';
+            nodeBgColor = 'var(--input-bg)';
+            iconBgColor = 'var(--text-muted)';
           } else if (styleInfo) {
             nodeBorderColor = styleInfo.color;
             nodeBgColor = styleInfo.bg;
@@ -357,7 +359,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                   <div className="node-info">
                     <strong>{hijo.nombre}</strong>
                     {hijo.marcaTercero && (
-                      <div style={{ fontSize: '0.72rem', color: '#aaa', marginTop: '2px' }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                         Marca: {hijo.marcaTercero}
                       </div>
                     )}
@@ -463,12 +465,15 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                     { label: 'Huawei', value: 'Huawei' }
                   ]}
                 />
-                <Input
-                  label="Número de Serie (S/N) (*)"
-                  placeholder={editingNode.marca === 'ZTE' ? "Ej: ZTEB01234567890" : "Ej: HUAW012345678901"}
-                  value={editingNode.serialNumber}
-                  onChange={e => handleSNChange(e.target.value, 'edit')}
-                />
+                <div>
+                  <Input
+                    label="Número de Serie (S/N) (*)"
+                    placeholder={editingNode.marca === 'ZTE' ? "Ej: ZTEB01234567890" : "Ej: HUAW012345678901"}
+                    value={editingNode.serialNumber}
+                    onChange={e => handleSNChange(e.target.value, 'edit')}
+                  />
+                  <ScanSnButton title="Escanear S/N" onScan={(text) => handleSNChange(text, 'edit')} />
+                </div>
               </>
             )}
 
@@ -567,12 +572,15 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                 { label: 'Huawei', value: 'Huawei' }
               ]}
             />
-            <Input
-              label="Número de Serie (S/N) (*)"
-              placeholder={newOnt.marca === 'ZTE' ? "Ej: ZTEB01234567890" : "Ej: HUAW012345678901"}
-              value={newOnt.serialNumber}
-              onChange={e => handleSNChange(e.target.value, 'ont')}
-            />
+            <div>
+              <Input
+                label="Número de Serie (S/N) (*)"
+                placeholder={newOnt.marca === 'ZTE' ? "Ej: ZTEB01234567890" : "Ej: HUAW012345678901"}
+                value={newOnt.serialNumber}
+                onChange={e => handleSNChange(e.target.value, 'ont')}
+              />
+              <ScanSnButton title="Escanear S/N de la ONT" onScan={(text) => handleSNChange(text, 'ont')} />
+            </div>
             <Input
               label="Piso (*)"
               type="number"
@@ -630,12 +638,15 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
                     { label: 'Huawei', value: 'Huawei' }
                   ]}
                 />
-                <Input
-                  label="Número de Serie (S/N) (*)"
-                  placeholder={newAp.marca === 'ZTE' ? "Ej: ZTEB01234567890" : "Ej: HUAW012345678901"}
-                  value={newAp.serialNumber}
-                  onChange={e => handleSNChange(e.target.value, 'ap')}
-                />
+                <div>
+                  <Input
+                    label="Número de Serie (S/N) (*)"
+                    placeholder={newAp.marca === 'ZTE' ? "Ej: ZTEB01234567890" : "Ej: HUAW012345678901"}
+                    value={newAp.serialNumber}
+                    onChange={e => handleSNChange(e.target.value, 'ap')}
+                  />
+                  <ScanSnButton title="Escanear S/N del AP" onScan={(text) => handleSNChange(text, 'ap')} />
+                </div>
               </>
             )}
 
@@ -742,38 +753,49 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
       {/* LEYENDA */}
       {ontNode && (
         <div className="leyenda-container">
-          <div className="leyenda-seccion">
-            <h5 className="leyenda-titulo">Calidad de Señal</h5>
-            <div className="leyenda-group">
-              {LEYENDA.map((item, idx) => (
-                <div key={idx} className="leyenda-item">
-                  <div className="leyenda-color" style={{ background: item.color }}></div>
-                  <span className="leyenda-texto">{item.lbl}</span>
+          <div
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: leyendaColapsada ? 0 : '0.5rem' }}
+            onClick={() => setLeyendaColapsada(!leyendaColapsada)}
+          >
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Leyenda</span>
+            {leyendaColapsada ? <ChevronDown size={16} color="var(--text-secondary)" /> : <ChevronUp size={16} color="var(--text-secondary)" />}
+          </div>
+          {!leyendaColapsada && (
+            <>
+              <div className="leyenda-seccion">
+                <h5 className="leyenda-titulo">Calidad de Señal</h5>
+                <div className="leyenda-group">
+                  {LEYENDA.map((item, idx) => (
+                    <div key={idx} className="leyenda-item">
+                      <div className="leyenda-color" style={{ background: item.color }}></div>
+                      <span className="leyenda-texto">{item.lbl}</span>
+                    </div>
+                  ))}
+                  <div className="leyenda-item">
+                    <div className="leyenda-color" style={{ background: 'var(--text-muted)' }}></div>
+                    <span className="leyenda-texto">Dispositivo NO Gestionable</span>
+                  </div>
                 </div>
-              ))}
-              <div className="leyenda-item">
-                <div className="leyenda-color" style={{ background: '#555' }}></div>
-                <span className="leyenda-texto">Dispositivo NO Gestionable</span>
               </div>
-            </div>
-          </div>
-          <div className="leyenda-seccion side-border">
-            <h5 className="leyenda-titulo">Tipo de Conexión</h5>
-            <div className="leyenda-group">
-              <div className="leyenda-item">
-                <div className="leyenda-linea line-fo"></div>
-                <span className="leyenda-texto">Cableado / FO</span>
+              <div className="leyenda-seccion side-border">
+                <h5 className="leyenda-titulo">Tipo de Conexión</h5>
+                <div className="leyenda-group">
+                  <div className="leyenda-item">
+                    <div className="leyenda-linea line-fo"></div>
+                    <span className="leyenda-texto">Cableado / FO</span>
+                  </div>
+                  <div className="leyenda-item">
+                    <div className="leyenda-linea line-5g"></div>
+                    <span className="leyenda-texto">Wireless 5G</span>
+                  </div>
+                  <div className="leyenda-item">
+                    <div className="leyenda-linea line-24g"></div>
+                    <span className="leyenda-texto">Wireless 2.4G</span>
+                  </div>
+                </div>
               </div>
-              <div className="leyenda-item">
-                <div className="leyenda-linea line-5g"></div>
-                <span className="leyenda-texto">Wireless 5G</span>
-              </div>
-              <div className="leyenda-item">
-                <div className="leyenda-linea line-24g"></div>
-                <span className="leyenda-texto">Wireless 2.4G</span>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       )}
 

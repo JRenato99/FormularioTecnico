@@ -3,6 +3,7 @@ import { Card, Button, Input, Select } from '../ui';
 import { Plus, Trash2, Tv, Save, Edit2, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { getRssiStyle } from '../../utils/constants';
 import { useUI } from '../ui/Modal.jsx';
+import ScanSnButton from '../ui/ScanSnButton';
 
 /**
  * Componente Registrador de Dispositivos WINBOX (TV)
@@ -139,13 +140,21 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
               {(!readonly || !allCollapsed) && (
               <>
               <div className="medicion-fields-grid">
-                <Input 
-                  label="Serial Number (S/N) (*)" 
-                  placeholder="Ej: WBX01234567" 
-                  value={w.serialNumber}
-                  onChange={e => updateWinbox(w.id, 'serialNumber', e.target.value.toUpperCase())}
-                  disabled={readonly}
-                />
+                <div>
+                  <Input
+                    label="Serial Number (S/N) (*)"
+                    placeholder="Ej: WBX01234567"
+                    value={w.serialNumber}
+                    onChange={e => updateWinbox(w.id, 'serialNumber', e.target.value.toUpperCase())}
+                    disabled={readonly}
+                  />
+                  {!readonly && (
+                    <ScanSnButton
+                      title="Escanear S/N del WINBOX"
+                      onScan={(text) => updateWinbox(w.id, 'serialNumber', text.toUpperCase())}
+                    />
+                  )}
+                </div>
                 
                 <Select 
                   label="Ambiente Instalado" 

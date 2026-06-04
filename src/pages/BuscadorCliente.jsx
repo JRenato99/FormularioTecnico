@@ -20,6 +20,7 @@ const BuscadorCliente = () => {
   const [cliente, setCliente] = useState(null);
   const [loading, setLoading] = useState(false);
   const [tipoVivienda, setTipoVivienda] = useState('');
+  const [tipoServicio, setTipoServicio] = useState('');
   const [historial, setHistorial] = useState([]);
   const [tecnico, setTecnico] = useState(null);
 
@@ -55,8 +56,8 @@ const BuscadorCliente = () => {
     e.preventDefault();
     if (!codigo) return;
 
-    if (codigo.length < 5 || codigo.length > 7) {
-      showToast({ type: 'warning', title: 'Código inválido', message: 'El código de pedido debe tener entre 5 y 7 dígitos numéricos.' });
+    if (codigo.length < 5) {
+      showToast({ type: 'warning', title: 'Código inválido', message: 'El código de pedido debe tener al menos 5 dígitos numéricos.' });
       return;
     }
 
@@ -97,8 +98,8 @@ const BuscadorCliente = () => {
   };
 
   const handleContinuar = () => {
-    if (!tipoVivienda) {
-      showToast({ type: 'warning', title: 'Falta información', message: "Por favor, selecciona si es Casa o Departamento antes de continuar." });
+    if (!tipoServicio || !tipoVivienda) {
+      showToast({ type: 'warning', title: 'Falta información', message: "Por favor, selecciona el Tipo de Servicio y el Tipo de Domicilio antes de continuar." });
       return;
     }
 
@@ -123,16 +124,12 @@ const BuscadorCliente = () => {
       }
     }
 
-    // El payload transporta variables al hijo mediante enrutador en memoria
-    navigate('/formulario', { state: { codigo: cliente.codigo, tipoVivienda } });
+    navigate('/formulario', { state: { codigo: cliente.codigo, tipoVivienda, tipoServicio } });
   };
 
   const handleCodigoChange = (e) => {
-    // Permitir solo números, bloquear letras o caracteres especiales
     const value = e.target.value.replace(/\D/g, '');
-    if (value.length <= 7) {
-      setCodigo(value);
-    }
+    if (value.length <= 20) setCodigo(value);
   };
 
   const getStatusIcon = (status) => {
@@ -154,6 +151,7 @@ const BuscadorCliente = () => {
       state: {
         codigo: orden.codigoCliente,
         tipoVivienda: orden.tipoVivienda || 'Casa',
+        tipoServicio: orden.tipoServicio || 'Instalación Nueva',
         modoEdicion: true,
         ordenPrevia: orden
       }
@@ -171,7 +169,7 @@ const BuscadorCliente = () => {
             <div>
               <h1 className="buscador-title">Registrar Nuevo Pedido</h1>
               <p className="buscador-subtitle">
-                Ingresa el código de pedido (5 a 7 dígitos) para iniciar un nuevo registro.
+                Ingresa el código de pedido para iniciar un nuevo registro.
               </p>
             </div>
           </div>
@@ -208,13 +206,37 @@ const BuscadorCliente = () => {
                   </div>
                 </div>
 
-                <div className="cliente-info-box">
-                  <span className="cliente-info-label">Tipo de Servicio:</span>
-                  <span className="cliente-info-value">{cliente.tipo}</span>
+                {/* Tipo de Servicio */}
+                <div style={{ marginTop: '1.5rem', marginBottom: '0', background: 'rgba(255, 107, 0, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255, 107, 0, 0.2)' }}>
+                  <h4 style={{ marginBottom: '0.8rem', color: 'var(--text-primary)', fontSize: '0.95rem' }}>Tipo de Servicio (*)</h4>
+                  <div style={{ display: 'flex', gap: '2rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                      <input
+                        type="radio"
+                        name="servicio"
+                        value="Instalación Nueva"
+                        checked={tipoServicio === 'Instalación Nueva'}
+                        onChange={(e) => setTipoServicio(e.target.value)}
+                        style={{ accentColor: 'var(--win-orange)', width: '16px', height: '16px' }}
+                      />
+                      <span>Instalación Nueva</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                      <input
+                        type="radio"
+                        name="servicio"
+                        value="Post-Venta"
+                        checked={tipoServicio === 'Post-Venta'}
+                        onChange={(e) => setTipoServicio(e.target.value)}
+                        style={{ accentColor: 'var(--win-orange)', width: '16px', height: '16px' }}
+                      />
+                      <span>Post-Venta</span>
+                    </label>
+                  </div>
                 </div>
 
                 {/* Sector Selección de Vivienda Catenado (Requerimiento de Negocio) */}
-                <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem', background: 'rgba(255, 107, 0, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255, 107, 0, 0.2)' }}>
+                <div style={{ marginTop: '1rem', marginBottom: '1.5rem', background: 'rgba(255, 107, 0, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255, 107, 0, 0.2)' }}>
                   <h4 style={{ marginBottom: '0.8rem', color: 'var(--text-primary)', fontSize: '0.95rem' }}>Tipo de Domicilio (*)</h4>
                   <div style={{ display: 'flex', gap: '2rem' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
@@ -242,7 +264,7 @@ const BuscadorCliente = () => {
                   </div>
                 </div>
 
-                <Button className="continuar-btn" onClick={handleContinuar} disabled={!tipoVivienda}>
+                <Button className="continuar-btn" onClick={handleContinuar} disabled={!tipoVivienda || !tipoServicio}>
                   Iniciar Formulario Técnico
                 </Button>
               </Card>

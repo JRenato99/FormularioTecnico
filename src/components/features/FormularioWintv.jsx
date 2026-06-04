@@ -62,7 +62,7 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
       <div className="form-mediciones-header">
          <div>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--win-orange)' }}>
-            <MonitorPlay size={24} /> Configuración WINTV
+            <MonitorPlay size={24} /> Configuración WINTV/DGO
           </h2>
           <p className="form-mediciones-subtitle">Registra las pantallas Smart TV que usarán la aplicación corporativa de WinTV.</p>
          </div>
@@ -151,8 +151,8 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
                   />
                 )}
 
-                <Input 
-                  label="Modelo Específico (*)" 
+                <Input
+                  label="Modelo Específico"
                   placeholder="Ej: OLED65C1PUB"
                   value={t.modelo || ''}
                   onChange={e => updateTelevisor(t.id, 'modelo', e.target.value)}

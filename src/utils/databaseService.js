@@ -159,6 +159,7 @@ export const getOrders = async () => {
     motivoRechazo: dbOrder.motivo_rechazo || '',  // ← viene de Supabase, disponible para todos
     tecnicoEmail: dbOrder.tecnico?.email || 'Desconocido',
     tecnicoCuadrilla: dbOrder.tecnico?.cuadrilla || 'Sin Cuadrilla',
+    tipoServicio: dbOrder.datos_cliente?.tipoServicio || 'Instalación Nueva',
     mediciones: dbOrder.datos_cliente?.mediciones || [],
     equipos: dbOrder.hardware_data?.equipos || [],
     winboxes: dbOrder.hardware_data?.winboxes || [],

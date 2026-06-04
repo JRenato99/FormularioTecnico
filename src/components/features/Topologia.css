@@ -114,8 +114,8 @@
 
 /* Identificador de Ambiente en el Nodo */
 .node-location-badge {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-muted);
+  background: rgba(128, 128, 128, 0.15);
+  color: var(--text-secondary);
   font-size: 0.75rem;
   padding: 3px 8px;
   border-radius: 4px;

@@ -17,7 +17,11 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
 
   /** Colapsa o expande todas las tarjetas guardadas */
   const toggleAll = () => {
-    setAllCollapsed(!allCollapsed);
+    const next = !allCollapsed;
+    setAllCollapsed(next);
+    if (!next) {
+      setMediciones(prev => prev.map(m => ({ ...m, isCollapsed: false })));
+    }
   };
 
   /**
@@ -33,7 +37,7 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
 
     const nuevaMedicion = {
       id: `MED-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-      equipoId: equipos[0]?.id || '', // Auto-asigna a la primera base (ONT por defecto)
+      equipoId: equipos[0]?.id || '',
       piso: '1',
       ubicacion: 'Sala',
       ubicacionPersonalizada: '',
@@ -42,7 +46,8 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
       rssi24g: '',
       velocidad5g: '',
       rssi5g: '',
-      isSaved: false // Candado Lógico: Mientras sea falso, los Inputs son editables con bordes azules.
+      isSaved: false,
+      isCollapsed: false
     };
     setMediciones([nuevaMedicion, ...mediciones]);
   };
@@ -110,9 +115,10 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
     if (!m.piso || (m.ubicacion === 'Otro' && !m.ubicacionPersonalizada)) {
       return showToast({ type: 'error', title: 'Campos incompletos', message: 'Falta piso o nombre del ambiente' });
     }
-    // Propagación de ubicaciones global por State Uplifting
     if (m.ubicacion === 'Otro') onAgregarUbicacion(m.ubicacionPersonalizada);
-    updateMedicion(m.id, 'isSaved', true);
+    setMediciones(prev => prev.map(item =>
+      item.id === m.id ? { ...item, isSaved: true, isCollapsed: true } : item
+    ));
   };
 
   // ==========================================
@@ -199,8 +205,8 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
                 {readonly ? `Ambiente: ${m.ubicacion === 'Otro' ? m.ubicacionPersonalizada : m.ubicacion}` : 'Nuevo Registro'}
               </h4>
 
-              {/* Contenido colapsable: oculto si está guardado y el switch global está activo */}
-              {(!readonly || !allCollapsed) && (
+              {/* Contenido colapsable: oculto si está guardado y colapsado (individual o global) */}
+              {(!readonly || (!m.isCollapsed && !allCollapsed)) && (
               <>
               <div className="medicion-fields-grid">
                 <Select 

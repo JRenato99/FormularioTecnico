@@ -26,6 +26,9 @@ const FormularioTecnico = () => {
   const codigoCliente = location.state?.codigo
     || location.state?.ordenPrevia?.codigoCliente
     || null;
+  const tipoServicio = location.state?.tipoServicio
+    || location.state?.ordenPrevia?.tipoServicio
+    || 'Instalación Nueva';
 
   const [equipos, setEquipos] = useState([]);
   const [mediciones, setMediciones] = useState([]);
@@ -300,7 +303,7 @@ const FormularioTecnico = () => {
       mediciones,
       winboxes,
       televisores,
-      clienteInfo: { csvContent: csvContentGenerated }
+      clienteInfo: { csvContent: csvContentGenerated, tipoServicio }
     };
     
     const result = await saveOrder(codigoCliente, payload);
@@ -357,18 +360,10 @@ const FormularioTecnico = () => {
       <Header />
       <div className="layout-container animate-fade-in">
         
-        <div className="dashboard-header" style={{ alignItems: 'flex-start' }}>
+        <div className="dashboard-header">
           <div>
             <h1 className="dashboard-title">Formulario de Instalación</h1>
             <p className="dashboard-subtitle">Orden/Cliente: <strong>{codigoCliente}</strong></p>
-          </div>
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-            <Button onClick={handleExportPDF} disabled={isExporting || equipos.length === 0} variant="secondary">
-              {isExporting ? 'Generando...' : <><Download size={18} /> Exportar Topología PDF</>}
-            </Button>
-            <Button onClick={doDescargarCSV} disabled={mediciones.length === 0} variant="primary">
-              <FileSpreadsheet size={18} /> Descargar Borrador Excel
-            </Button>
           </div>
         </div>
 
@@ -419,6 +414,15 @@ const FormularioTecnico = () => {
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '1rem', opacity: 0.7 }}>
           Los campos marcados con <strong style={{ color: 'var(--win-orange)' }}>(*)</strong> son obligatorios.
         </p>
+
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+          <Button onClick={handleExportPDF} disabled={isExporting || equipos.length === 0} variant="secondary">
+            {isExporting ? 'Generando...' : <><Download size={18} /> Exportar Topología PDF</>}
+          </Button>
+          <Button onClick={doDescargarCSV} disabled={mediciones.length === 0} variant="primary">
+            <FileSpreadsheet size={18} /> Descargar Borrador Excel
+          </Button>
+        </div>
 
         <div className="dashboard-actions-container">
            <Button variant="secondary" className="dashboard-btn-large" onClick={handleCancelar}>
