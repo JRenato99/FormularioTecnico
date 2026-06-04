@@ -1,52 +1,75 @@
 -- ============================================================================
--- HIGH-05: Endurecimiento de la RPC check_duplicate_sn
+-- HIGH-05 (CORREGIDO con la definición real de check_duplicate_sn)
 -- ============================================================================
--- Contexto:
---   El frontend llama a check_duplicate_sn(sn_list, exclude_cod_pedido) para
---   validar que un número de serie / MAC no exista ya en OTRA orden. Para que
---   esa comparación sea global la función corre como SECURITY DEFINER y por
---   tanto se salta las políticas RLS. Eso abre dos riesgos:
---     1. search_path injection: una función SECURITY DEFINER sin search_path
---        fijo puede ser engañada para ejecutar objetos de otro esquema.
---     2. Enumeración: cualquier usuario autenticado podría usarla como oráculo
---        para descubrir qué hardware existe en el sistema.
+-- CORRECCIÓN DEL DIAGNÓSTICO ORIGINAL:
+--   El reporte inicial asumió que la función era SECURITY DEFINER y advertía
+--   un riesgo de "enumeración" de números de serie. Al revisar la definición
+--   real (schema.sql) se confirma que la función NO declara SECURITY DEFINER,
+--   por lo que corre como SECURITY INVOKER (default) y RESPETA las políticas
+--   RLS de win_orders.
 --
--- Este script aplica el endurecimiento que NO depende del cuerpo de la función
--- (no lo reescribe, para no romper la lógica de unicidad existente):
---   A) Fija un search_path seguro.
---   B) Revoca el permiso de ejecución a roles anónimos; solo 'authenticated'.
+--   Consecuencia REAL (más relevante que la enumeración):
+--     * Para un TECNICO, la política RLS "Lectura de ordenes" solo expone SUS
+--       propias órdenes. Como la función corre con sus permisos, el chequeo de
+--       unicidad "global" en realidad NO ve las órdenes de otros técnicos:
+--       => el control de S/N duplicados está silenciosamente ROTO entre técnicos.
+--       Un técnico podría registrar un equipo (S/N/MAC) ya instalado por otro.
+--     * El oráculo de enumeración reportado NO aplica con SECURITY INVOKER.
 --
--- IMPORTANTE: ajustá la firma (tipos de argumentos) si difiere de la real.
--- Verificá la firma exacta con:
---   select p.proname, pg_get_function_identity_arguments(p.oid)
---   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
---   where p.proname = 'check_duplicate_sn';
+-- FIX:
+--   La función debe ver TODA la tabla para cumplir su propósito documentado
+--   ("busca en toda la tabla win_orders"). Por eso pasa a SECURITY DEFINER con
+--   search_path fijo (previene search_path injection) y EXECUTE restringido a
+--   usuarios autenticados. Así la unicidad vuelve a ser realmente global.
+--
+--   Tradeoff aceptado: un usuario autenticado puede verificar si un S/N que ya
+--   tiene en la mano está registrado (uso legítimo del formulario). Los S/N son
+--   de alta entropía, por lo que no son enumerables a ciegas de forma práctica.
+--
+-- Aplicar en: Supabase → SQL Editor (o supabase db push).
 -- ----------------------------------------------------------------------------
 
--- A) search_path seguro (previene search_path injection en SECURITY DEFINER).
-alter function public.check_duplicate_sn(text[], text)
-  set search_path = public, pg_temp;
+-- Eliminar ambas firmas existentes (la antigua de 1 parámetro y la de 2).
+DROP FUNCTION IF EXISTS public.check_duplicate_sn(text[]);
+DROP FUNCTION IF EXISTS public.check_duplicate_sn(text[], text);
 
--- B) Restringir ejecución: fuera anónimos, solo usuarios autenticados.
-revoke all on function public.check_duplicate_sn(text[], text) from public;
-revoke all on function public.check_duplicate_sn(text[], text) from anon;
-grant execute on function public.check_duplicate_sn(text[], text) to authenticated;
+CREATE OR REPLACE FUNCTION public.check_duplicate_sn(
+    sn_list TEXT[],
+    exclude_cod_pedido TEXT DEFAULT NULL
+)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER                       -- ve toda la tabla: unicidad realmente global
+SET search_path = public, pg_temp      -- evita search_path injection en SECURITY DEFINER
+AS $$
+DECLARE
+    duplicate_sn TEXT;
+BEGIN
+    SELECT sn INTO duplicate_sn
+    FROM (
+        -- Extraer S/N de equipos (ONT, APs)
+        SELECT e ->> 'serialNumber' AS sn, cod_pedido
+        FROM public.win_orders, jsonb_array_elements(hardware_data -> 'equipos') AS e
+        WHERE jsonb_typeof(hardware_data -> 'equipos') = 'array'
 
--- ----------------------------------------------------------------------------
--- RECOMENDACIÓN (fix de raíz, opcional pero preferible):
--- El oráculo de enumeración existe porque la unicidad se valida desde el
--- cliente. Lo ideal es MOVER la unicidad al servidor con un índice único sobre
--- los números de serie, de modo que el cliente no necesite consultar nada:
--- el INSERT/UPDATE falla solo si hay duplicado.
---
--- Ejemplo (requiere extraer los S/N a una columna o tabla normalizada):
---
---   create table win_order_serials (
---     sn          text primary key,
---     cod_pedido  text not null references win_orders(cod_pedido) on delete cascade
---   );
---
--- y poblarla con un trigger AFTER INSERT/UPDATE sobre win_orders que extraiga
--- los serialNumber de hardware_data->'equipos' y los sn de ->'winboxes'.
--- Con eso la unicidad la garantiza la PK y se puede eliminar la RPC.
--- ----------------------------------------------------------------------------
+        UNION ALL
+
+        -- Extraer S/N de winboxes
+        SELECT w ->> 'sn' AS sn, cod_pedido
+        FROM public.win_orders, jsonb_array_elements(hardware_data -> 'winboxes') AS w
+        WHERE jsonb_typeof(hardware_data -> 'winboxes') = 'array'
+    ) AS all_sn
+    WHERE sn = ANY(sn_list)
+      AND sn IS NOT NULL
+      AND sn != ''
+      AND (exclude_cod_pedido IS NULL OR cod_pedido != exclude_cod_pedido)
+    LIMIT 1;
+
+    RETURN duplicate_sn;
+END;
+$$;
+
+-- Restringir ejecución: fuera anónimos; solo usuarios autenticados.
+REVOKE ALL ON FUNCTION public.check_duplicate_sn(text[], text) FROM public;
+REVOKE ALL ON FUNCTION public.check_duplicate_sn(text[], text) FROM anon;
+GRANT EXECUTE ON FUNCTION public.check_duplicate_sn(text[], text) TO authenticated;
