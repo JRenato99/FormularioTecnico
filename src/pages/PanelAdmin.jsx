@@ -457,10 +457,12 @@ const PanelAdmin = () => {
 
                             {/* Render visual de Topología (Oculta controles de edición) */}
                             <div ref={el => topologiaRefs.current[idx] = el} style={{ background: 'var(--win-bg-dark)', padding: '1rem', borderRadius: '12px', marginBottom: '1rem' }}>
-                               <TopologiaRed 
-                                 equipos={orden.equipos} 
-                                 setEquipos={() => {}} 
-                                 isExporting={true} 
+                               <TopologiaRed
+                                 equipos={orden.equipos}
+                                 setEquipos={() => {}}
+                                 winboxes={orden.winboxes || []}
+                                 televisores={orden.televisores || []}
+                                 isExporting={true}
                                  listaUbicaciones={[]}
                                  onAgregarUbicacion={() => {}}
                                />

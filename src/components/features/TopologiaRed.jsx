@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Button, Input, Select } from '../ui';
-import { Plus, Trash2, Router, Wifi, Hash, Edit2, ShieldAlert, Network, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Router, Wifi, Hash, Edit2, ShieldAlert, Network, AlertTriangle, ChevronDown, ChevronUp, Tv, MonitorPlay } from 'lucide-react';
 import { useUI } from '../ui/Modal.jsx';
 import ScanSnButton from '../ui/ScanSnButton';
 import { LEYENDA, getRssiStyle } from '../../utils/constants';
@@ -9,7 +9,7 @@ import './Topologia.css';
 /**
  * Módulo Arquitectónico: Topología de Red
  */
-const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAgregarUbicacion }) => {
+const TopologiaRed = ({ equipos, setEquipos, winboxes = [], televisores = [], isExporting, listaUbicaciones, onAgregarUbicacion }) => {
 
   const { showToast } = useUI();
   const [showAddModal, setShowAddModal] = useState(false);
@@ -304,9 +304,62 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     setEquipos(equipos.filter(e => !idsToRemove.includes(e.id)));
   };
 
+  // ============================================================
+  // NODOS TERMINALES (WINBOX y TVs WINTV) — solo lectura
+  // ============================================================
+  const getLineClassForTerminal = (disp, tipo) => {
+    if (tipo === 'WINBOX') {
+      if (disp.modoConexion === 'Cableado') return 'line-fo';
+      return disp.bandaWifi === '5G' ? 'line-5g' : 'line-24g';
+    }
+    // WINTV — los valores son: "Cableado" | "Inalámbrico 5G" | "Inalámbrico 2.4G"
+    if ((disp.modoConexion || '').startsWith('Cableado')) return 'line-fo';
+    if (disp.modoConexion === 'Inalámbrico 5G') return 'line-5g';
+    return 'line-24g';
+  };
+
+  const resolveAmbiente = (disp) =>
+    disp.ubicacion === 'Otro' ? (disp.ubicacionPersonalizada || 'Otro') : disp.ubicacion;
+
+  const renderTerminalNode = (disp, tipo, idx) => {
+    const lineClass = getLineClassForTerminal(disp, tipo);
+    const isWireless = lineClass !== 'line-fo';
+    const wirelessLabel = lineClass === 'line-5g' ? '5G Inalámbrico' : '2.4G Inalámbrico';
+    const wbClass = lineClass === 'line-5g' ? 'wb-5g' : 'wb-24g';
+
+    const nombre = tipo === 'WINBOX'
+      ? `Winbox ${idx + 1}`
+      : `TV ${disp.marca === 'Otro' ? (disp.marcaPersonalizada || 'Otro') : disp.marca}`;
+
+    return (
+      <div key={`term-${tipo}-${disp.id}`} className="tree-node-container animate-fade-in">
+        <div className="node-wrapper">
+          <div className={`tree-line ${lineClass}`}>
+            {isWireless && (
+              <span className={`wireless-badge ${wbClass}`}>{wirelessLabel}</span>
+            )}
+          </div>
+          <div className="node-card terminal-node">
+            <div className="node-icon" style={{ background: 'var(--text-secondary)' }}>
+              {tipo === 'WINBOX' ? <Tv size={20} /> : <MonitorPlay size={20} />}
+            </div>
+            <div className="node-info">
+              <strong>{nombre}</strong>
+              <div className="node-location-badge">
+                {resolveAmbiente(disp)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderArbol = (parentId) => {
     const hijos = equipos.filter(e => e.parentId === parentId);
-    if (hijos.length === 0) return null;
+    const wbHijos = winboxes.filter(w => w.equipoId === parentId && w.isSaved);
+    const tvHijos = televisores.filter(t => t.equipoId === parentId && t.isSaved);
+    if (hijos.length === 0 && wbHijos.length === 0 && tvHijos.length === 0) return null;
 
     return (
       <div className="tree-children">
@@ -404,6 +457,8 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
             </div>
           );
         })}
+        {wbHijos.map((w, idx) => renderTerminalNode(w, 'WINBOX', idx))}
+        {tvHijos.map((t, idx) => renderTerminalNode(t, 'WINTV', idx))}
       </div>
     );
   };

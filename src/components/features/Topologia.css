@@ -471,3 +471,24 @@ body.light-theme .leyenda-color {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
 
+/* ============================================================
+   Nodo Terminal (WINBOX / WINTV) — variante compacta read-only
+   Mantiene min-width: 260px heredado de .node-card para no
+   descuadrar el alineamiento horizontal del árbol.
+   ============================================================ */
+.node-card.terminal-node {
+  padding: 0.75rem 1rem;
+  opacity: 0.95;
+  border-style: dashed;
+}
+.node-card.terminal-node .node-icon {
+  width: 36px;
+  height: 36px;
+}
+.node-card.terminal-node strong {
+  font-size: 0.9rem;
+}
+.node-card.terminal-node:hover {
+  transform: none;
+}
+

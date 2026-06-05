@@ -9,7 +9,7 @@ import { useUI } from '../ui/Modal.jsx';
  * - Alerta cuando el modo de conexión es 2.4G.
  * - Lista colapsable para mejorar la navegación.
  */
-const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgregarUbicacion }) => {
+const FormularioWintv = ({ equipos = [], televisores, setTelevisores, listaUbicaciones, onAgregarUbicacion }) => {
   const { showToast } = useUI();
   const [allCollapsed, setAllCollapsed] = useState(false);
 
@@ -33,6 +33,7 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
       marca: 'Samsung',
       marcaPersonalizada: '',
       modelo: '',
+      equipoId: equipos[0]?.id || '',
       modoConexion: 'Inalámbrico 5G', // Cableado Ethernet | Inalámbrico 5G | Inalámbrico 2.4G
       isSaved: false
     };
@@ -50,6 +51,7 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
   const handleSaveTelevisor = (t) => {
     if (t.ubicacion === 'Otro' && !t.ubicacionPersonalizada) return showToast({ type: 'error', title: 'Falta Ubicación', message: 'Falta ingresar el nombre manual del ambiente.' });
     if (t.marca === 'Otro' && !t.marcaPersonalizada) return showToast({ type: 'error', title: 'Falta Marca', message: 'Debes detallar la marca de esta TV.' });
+    if (equipos.length > 0 && !t.equipoId) return showToast({ type: 'error', title: 'Falta equipo padre', message: 'Indica a qué equipo se conecta esta pantalla.' });
     // Modelo es OPCIONAL, pero sin el label "(opcional)". Si está vacío se guarda como null.
     const modeloFinal = t.modelo?.trim() || null;
     if (t.ubicacion === 'Otro') onAgregarUbicacion(t.ubicacionPersonalizada);
@@ -73,7 +75,7 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
                {allCollapsed ? 'Expandir Todo' : 'Colapsar Todo'}
              </Button>
            )}
-           <Button onClick={addTelevisor}>
+           <Button onClick={addTelevisor} disabled={equipos.length === 0} title={equipos.length === 0 ? 'Primero registra la ONT en la topología' : undefined}>
              <Plus size={18} /> Añadir Televisor WINTV
            </Button>
          </div>
@@ -159,8 +161,16 @@ const FormularioWintv = ({ televisores, setTelevisores, listaUbicaciones, onAgre
                   disabled={readonly}
                 />
                 
-                <Select 
-                  label="Tipo de Conexión de Red" 
+                <Select
+                  label="Conectado al equipo:"
+                  value={t.equipoId}
+                  onChange={e => updateTelevisor(t.id, 'equipoId', e.target.value)}
+                  options={equipos.map(e => ({ label: `${e.nombre} (${e.ambienteFinal})`, value: e.id }))}
+                  disabled={readonly}
+                />
+
+                <Select
+                  label="Tipo de Conexión de Red"
                   value={t.modoConexion}
                   onChange={e => updateTelevisor(t.id, 'modoConexion', e.target.value)}
                   options={[

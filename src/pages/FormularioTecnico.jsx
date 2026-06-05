@@ -371,10 +371,12 @@ const FormularioTecnico = () => {
           
           {/* 1° Topología de Red */}
           <div ref={topologiaRef} style={{ background: 'var(--win-bg-dark)', padding: '1rem', borderRadius: '12px' }}>
-            <TopologiaRed 
-               equipos={equipos} 
-               setEquipos={setEquipos} 
-               isExporting={isExporting} 
+            <TopologiaRed
+               equipos={equipos}
+               setEquipos={setEquipos}
+               winboxes={winboxes}
+               televisores={televisores}
+               isExporting={isExporting}
                listaUbicaciones={listaUbicaciones}
                onAgregarUbicacion={handleAgregarUbicacionCustom}
             />
@@ -400,7 +402,8 @@ const FormularioTecnico = () => {
             />
             
             {/* 4° Configuración WINtv */}
-            <FormularioWintv 
+            <FormularioWintv
+               equipos={equipos}
                televisores={televisores}
                setTelevisores={setTelevisores}
                listaUbicaciones={listaUbicaciones}
