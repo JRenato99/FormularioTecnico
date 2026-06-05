@@ -114,10 +114,17 @@ const FormularioTecnico = () => {
     
     setTimeout(async () => {
       try {
-        const canvas = await html2canvas(topologiaRef.current, {
-          scale: 2, 
-          backgroundColor: getComputedStyle(document.body).getPropertyValue('background-color') || '#121212', 
+        const el = topologiaRef.current;
+        // Captura el ancho/alto completo del árbol aunque tenga scroll horizontal en pantalla
+        const fullWidth = Math.max(el.scrollWidth, el.offsetWidth);
+        const fullHeight = Math.max(el.scrollHeight, el.offsetHeight);
+        const canvas = await html2canvas(el, {
+          scale: 2,
+          backgroundColor: getComputedStyle(document.body).getPropertyValue('background-color') || '#121212',
           useCORS: true,
+          width: fullWidth,
+          height: fullHeight,
+          windowWidth: fullWidth,
         });
         
         const imgData = canvas.toDataURL('image/jpeg', 0.95);

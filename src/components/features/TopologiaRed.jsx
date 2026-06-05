@@ -346,7 +346,7 @@ const TopologiaRed = ({ equipos, setEquipos, winboxes = [], televisores = [], is
             <div className="node-info">
               <strong>{nombre}</strong>
               <div className="node-location-badge">
-                {resolveAmbiente(disp)}
+                {disp.piso ? `P${disp.piso} - ` : ''}{resolveAmbiente(disp)}
               </div>
             </div>
           </div>
@@ -473,7 +473,7 @@ const TopologiaRed = ({ equipos, setEquipos, winboxes = [], televisores = [], is
   };
 
   return (
-    <Card className="topologia-card">
+    <Card className={`topologia-card ${isExporting ? 'exporting' : ''}`}>
       <div className="topologia-header" style={{ alignItems: 'flex-start' }}>
         <div>
           <h2 style={{ color: isExporting ? 'var(--win-orange)' : undefined, fontSize: isExporting ? '1.4rem' : undefined }}>

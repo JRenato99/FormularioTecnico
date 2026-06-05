@@ -203,10 +203,15 @@ const PanelAdmin = () => {
     
     setTimeout(async () => {
       try {
+        const fullWidth = Math.max(element.scrollWidth, element.offsetWidth);
+        const fullHeight = Math.max(element.scrollHeight, element.offsetHeight);
         const canvas = await html2canvas(element, {
-          scale: 2, 
-          backgroundColor: getComputedStyle(document.body).getPropertyValue('background-color') || '#121212', 
+          scale: 2,
+          backgroundColor: getComputedStyle(document.body).getPropertyValue('background-color') || '#121212',
           useCORS: true,
+          width: fullWidth,
+          height: fullHeight,
+          windowWidth: fullWidth,
         });
         
         const imgData = canvas.toDataURL('image/jpeg', 0.95);

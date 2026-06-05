@@ -30,6 +30,7 @@ const FormularioWintv = ({ equipos = [], televisores, setTelevisores, listaUbica
       id: `TV-${Date.now()}-${Math.random().toString(36).substring(7)}`,
       ubicacion: 'Sala',
       ubicacionPersonalizada: '',
+      piso: '1',
       marca: 'Samsung',
       marcaPersonalizada: '',
       modelo: '',
@@ -48,8 +49,18 @@ const FormularioWintv = ({ equipos = [], televisores, setTelevisores, listaUbica
     setTelevisores(televisores.map(t => t.id === id ? { ...t, [field]: value } : t));
   };
 
+  const handlePisoChange = (id, val) => {
+    let pStr = val.replace(/\D/g, '');
+    if (!pStr) return updateTelevisor(id, 'piso', '');
+    let p = parseInt(pStr, 10);
+    if (p < 1) p = 1;
+    if (p > 5) p = 5;
+    updateTelevisor(id, 'piso', p.toString());
+  };
+
   const handleSaveTelevisor = (t) => {
     if (t.ubicacion === 'Otro' && !t.ubicacionPersonalizada) return showToast({ type: 'error', title: 'Falta Ubicación', message: 'Falta ingresar el nombre manual del ambiente.' });
+    if (!t.piso) return showToast({ type: 'error', title: 'Piso faltante', message: 'Indica en qué piso se ubica esta pantalla (1-5).' });
     if (t.marca === 'Otro' && !t.marcaPersonalizada) return showToast({ type: 'error', title: 'Falta Marca', message: 'Debes detallar la marca de esta TV.' });
     if (equipos.length > 0 && !t.equipoId) return showToast({ type: 'error', title: 'Falta equipo padre', message: 'Indica a qué equipo se conecta esta pantalla.' });
     // Modelo es OPCIONAL, pero sin el label "(opcional)". Si está vacío se guarda como null.
@@ -117,17 +128,26 @@ const FormularioWintv = ({ equipos = [], televisores, setTelevisores, listaUbica
               {(!readonly || !allCollapsed) && (
               <div className="medicion-fields-grid">
                 
-                <Select 
-                  label="Ambiente Instalado" 
+                <Select
+                  label="Ambiente Instalado"
                   value={t.ubicacion}
                   onChange={e => updateTelevisor(t.id, 'ubicacion', e.target.value)}
                   options={listaUbicaciones.map(u => ({ label: u, value: u }))}
                   disabled={readonly}
                 />
-                
+
+                <Input
+                  label="Piso (*)"
+                  type="number"
+                  placeholder="1-5"
+                  value={t.piso}
+                  onChange={e => handlePisoChange(t.id, e.target.value)}
+                  disabled={readonly}
+                />
+
                 {t.ubicacion === 'Otro' && (
-                  <Input 
-                    label="Nombre Ambiente" 
+                  <Input
+                    label="Nombre Ambiente"
                     placeholder="Ej: Sala de Estar"
                     value={t.ubicacionPersonalizada}
                     onChange={e => updateTelevisor(t.id, 'ubicacionPersonalizada', e.target.value)}

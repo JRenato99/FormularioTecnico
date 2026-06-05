@@ -26,6 +26,7 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
       id: `WB-${Date.now()}-${Math.random().toString(36).substring(7)}`,
       serialNumber: '',
       equipoId: equipos[0]?.id || '',
+      piso: '1',
       ubicacion: 'Sala',
       ubicacionPersonalizada: '',
       modoConexion: 'Cableado', // Cableado | Inalámbrico
@@ -45,6 +46,15 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
     setWinboxes(winboxes.map(w => w.id === id ? { ...w, [field]: value } : w));
   };
 
+  const handlePisoChange = (id, val) => {
+    let pStr = val.replace(/\D/g, '');
+    if (!pStr) return updateWinbox(id, 'piso', '');
+    let p = parseInt(pStr, 10);
+    if (p < 1) p = 1;
+    if (p > 5) p = 5;
+    updateWinbox(id, 'piso', p.toString());
+  };
+
   const handleVelocidadChange = (id, val) => {
     let vStr = val.replace(/\D/g, ''); 
     updateWinbox(id, 'velocidad', vStr);
@@ -60,6 +70,7 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
 
   const handleSaveWinbox = (w) => {
     if (!w.serialNumber) return showToast({ type: 'error', title: 'S/N Faltante', message: 'Falta ingresar el número de serie (S/N) del WINBOX.' });
+    if (!w.piso) return showToast({ type: 'error', title: 'Piso faltante', message: 'Indica en qué piso se ubica el WINBOX (1-5).' });
     if (w.ubicacion === 'Otro' && !w.ubicacionPersonalizada) return showToast({ type: 'error', title: 'Ambiente Faltante', message: 'Falta ingresar nombre de ambiente manual.' });
     
     // Condicional Fuerte para Wi-Fi
@@ -156,17 +167,26 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
                   )}
                 </div>
                 
-                <Select 
-                  label="Ambiente Instalado" 
+                <Select
+                  label="Ambiente Instalado"
                   value={w.ubicacion}
                   onChange={e => updateWinbox(w.id, 'ubicacion', e.target.value)}
                   options={listaUbicaciones.map(u => ({ label: u, value: u }))}
                   disabled={readonly}
                 />
-                
+
+                <Input
+                  label="Piso (*)"
+                  type="number"
+                  placeholder="1-5"
+                  value={w.piso}
+                  onChange={e => handlePisoChange(w.id, e.target.value)}
+                  disabled={readonly}
+                />
+
                 {w.ubicacion === 'Otro' && (
-                  <Input 
-                    label="Nombre Ambiente" 
+                  <Input
+                    label="Nombre Ambiente"
                     placeholder="Ej: Sala de Estar"
                     value={w.ubicacionPersonalizada}
                     onChange={e => updateWinbox(w.id, 'ubicacionPersonalizada', e.target.value)}
@@ -174,8 +194,8 @@ const FormularioWinbox = ({ equipos, winboxes, setWinboxes, listaUbicaciones, on
                   />
                 )}
 
-                <Select 
-                  label="Conectado al equipo:" 
+                <Select
+                  label="Conectado al equipo:"
                   value={w.equipoId}
                   onChange={e => updateWinbox(w.id, 'equipoId', e.target.value)}
                   options={equipos.map(e => ({ label: `${e.nombre} (${e.ambienteFinal})`, value: e.id }))}

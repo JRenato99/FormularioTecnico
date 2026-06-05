@@ -2,6 +2,7 @@
 
 .topologia-card {
   overflow: hidden;
+  max-width: 100%;
 }
 
 .topologia-header {
@@ -166,10 +167,48 @@
 .tree-wrapper {
   padding: 2rem 0;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   overflow-x: auto;
+  overflow-y: hidden;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  /* Indicador visual de que hay contenido lateral oculto */
+  scrollbar-width: thin;
+  scrollbar-color: var(--win-orange) transparent;
+}
+
+.tree-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+.tree-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tree-wrapper::-webkit-scrollbar-thumb {
+  background: var(--win-orange);
+  border-radius: 4px;
+  opacity: 0.6;
+}
+
+/* Centrar el árbol cuando cabe completo */
+.tree-wrapper .tree-root {
+  margin: 0 auto;
+}
+
+/* ============================================================
+   Modo Exportación PDF:
+   - Libera todos los confinamientos para que html2canvas capture
+     el árbol completo (sin scrollbar interno).
+   - El usuario sigue viendo el scroll en pantalla normal.
+   ============================================================ */
+.topologia-card.exporting {
+  overflow: visible !important;
+  max-width: none !important;
+}
+.topologia-card.exporting .tree-wrapper {
+  overflow: visible !important;
+  max-width: none !important;
+  justify-content: center;
 }
 
 .tree-root {
