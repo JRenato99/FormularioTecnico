@@ -75,6 +75,14 @@ input, select {
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
+  min-width: 0;
+}
+
+/* Evita scroll horizontal global cuando un descendiente intenta crecer:
+   el scroll debe vivir dentro del componente, no en el body */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 /* Animations */

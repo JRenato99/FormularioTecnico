@@ -36,6 +36,14 @@
 .dashboard-content-grid {
   display: grid;
   gap: 2rem;
+  /* Evita que un grid item ancho (ej: topología con muchos hijos) empuje el ancho de toda la página */
+  min-width: 0;
+}
+
+/* CRITICO: los grid items por defecto tienen min-width:auto y crecen al contenido.
+   Esto fuerza a respetar el track del grid y deja al contenido scrollear internamente. */
+.dashboard-content-grid > * {
+  min-width: 0;
 }
 
 @media screen and (max-width: 768px) {

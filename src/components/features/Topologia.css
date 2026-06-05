@@ -3,6 +3,7 @@
 .topologia-card {
   overflow: hidden;
   max-width: 100%;
+  min-width: 0;
 }
 
 .topologia-header {

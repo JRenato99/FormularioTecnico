@@ -377,7 +377,7 @@ const FormularioTecnico = () => {
         <div className="dashboard-content-grid">
           
           {/* 1° Topología de Red */}
-          <div ref={topologiaRef} style={{ background: 'var(--win-bg-dark)', padding: '1rem', borderRadius: '12px' }}>
+          <div ref={topologiaRef} style={{ background: 'var(--win-bg-dark)', padding: '1rem', borderRadius: '12px', minWidth: 0, overflow: isExporting ? 'visible' : 'hidden' }}>
             <TopologiaRed
                equipos={equipos}
                setEquipos={setEquipos}
