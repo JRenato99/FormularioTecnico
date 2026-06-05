@@ -365,7 +365,13 @@ const TopologiaRed = ({ equipos, setEquipos, winboxes = [], televisores = [], is
       <div className="tree-children">
         {hijos.map(hijo => {
           const is3th = hijo.esTercero;
-          const styleInfo = (hijo.conexion === 'Inalámbrico' && !is3th) ? getRssiStyle(hijo.rssiBackhaul) : null;
+          // AP WIN cableado → señal óptima garantizada (LEYENDA[0] = verde oscuro)
+          // AP WIN inalámbrico → color según RSSI medido
+          const styleInfo = is3th
+            ? null
+            : hijo.conexion === 'Cableado'
+              ? LEYENDA[0]
+              : getRssiStyle(hijo.rssiBackhaul);
 
           let nodeBorderColor = 'var(--border-color)';
           let nodeBgColor = 'var(--input-bg)';
