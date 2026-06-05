@@ -108,6 +108,70 @@ body.light-theme {
   --text-primary: #121620;
   --text-secondary: #4a5568;
   --text-muted: #a0aec0;
-  --border-color: #e2e8f0;
+  --border-color: #cbd5e0;
   --input-bg: #edf2f7;
+}
+
+/* ============================================================
+   MODAL "Resumen de Instalación" y otros modales legacy
+   (clases sin estilos previos)
+   ============================================================ */
+.modal-content {
+  background: var(--win-bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem;
+  width: min(600px, 92vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.25s ease-out;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--text-primary);
+}
+
+.modal-body {
+  color: var(--text-primary);
+}
+
+.modal-footer {
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+}
+
+.del-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+}
+.del-btn:hover {
+  background: rgba(127, 127, 127, 0.15);
+  color: var(--text-primary);
+}
+
+/* Compat: algunos componentes usan --bg-secondary y --bg-hover */
+:root {
+  --bg-secondary: var(--win-bg-surface);
+  --bg-hover: rgba(255, 255, 255, 0.04);
+}
+body.light-theme {
+  --bg-secondary: #f7fafc;
+  --bg-hover: rgba(0, 0, 0, 0.03);
 }

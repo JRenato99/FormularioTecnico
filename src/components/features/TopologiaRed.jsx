@@ -421,8 +421,12 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
     <Card className="topologia-card">
       <div className="topologia-header" style={{ alignItems: 'flex-start' }}>
         <div>
-          <h2>Topología de Red</h2>
-          <p className="subtitle">Configura y visualiza la distribución de equipos WIN y Terceros</p>
+          <h2 style={{ color: isExporting ? 'var(--win-orange)' : undefined, fontSize: isExporting ? '1.4rem' : undefined }}>
+            Topología de Red
+          </h2>
+          {!isExporting && (
+            <p className="subtitle">Configura y visualiza la distribución de equipos WIN y Terceros</p>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
@@ -548,10 +552,10 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
 
           </div>
           <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-            <Button style={{ flex: 1, background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} onClick={() => setEditingNode(null)}>
+            <Button variant="secondary" style={{ flex: 1 }} onClick={() => setEditingNode(null)}>
               Cancelar
             </Button>
-            <Button style={{ flex: 1, background: 'var(--text-secondary)', color: 'white', borderColor: 'var(--text-secondary)' }} onClick={handleUpdateNode}>
+            <Button variant="primary" style={{ flex: 1 }} onClick={handleUpdateNode}>
               Actualizar Equipo
             </Button>
           </div>
@@ -603,7 +607,7 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
               />
             )}
           </div>
-          <Button style={{ marginTop: '1rem', width: '100%', background: 'var(--win-orange)', color: 'white' }} onClick={handleAddOnt}>
+          <Button variant="primary" style={{ marginTop: '1rem', width: '100%' }} onClick={handleAddOnt}>
             Guardar ONT
           </Button>
         </div>
@@ -740,18 +744,18 @@ const TopologiaRed = ({ equipos, setEquipos, isExporting, listaUbicaciones, onAg
             )}
           </div>
           <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-            <Button style={{ flex: 1, background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} onClick={() => setShowAddModal(false)}>
+            <Button variant="secondary" style={{ flex: 1 }} onClick={() => setShowAddModal(false)}>
               Cancelar
             </Button>
-            <Button style={{ flex: 1, background: isAdding3thParty ? '#555' : 'var(--win-blue-light)', color: 'white', borderColor: isAdding3thParty ? '#555' : 'var(--win-blue-light)' }} onClick={handleAddAp}>
+            <Button variant="primary" style={{ flex: 1 }} onClick={handleAddAp}>
               Guardar Equipo
             </Button>
           </div>
         </div>
       )}
 
-      {/* LEYENDA */}
-      {ontNode && (
+      {/* LEYENDA — Se oculta durante la exportación del PDF */}
+      {ontNode && !isExporting && (
         <div className="leyenda-container">
           <div
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: leyendaColapsada ? 0 : '0.5rem' }}

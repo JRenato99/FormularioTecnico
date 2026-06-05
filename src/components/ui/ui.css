@@ -30,8 +30,19 @@
 }
 
 .ui-btn-secondary:hover {
-  background-color: #2A2A2A;
-  border-color: #444;
+  background-color: var(--input-bg);
+  border-color: var(--text-secondary);
+}
+
+/* Tonos legibles cuando un .ui-btn esta deshabilitado (evita el btn blanco en modo claro) */
+.ui-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: saturate(0.7);
+}
+.ui-btn:disabled:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .ui-btn:active {

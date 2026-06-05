@@ -143,7 +143,9 @@ const FormularioMediciones = ({ equipos, mediciones, setMediciones, listaUbicaci
     <div style={{ marginTop: '2rem' }}>
       <div className="form-mediciones-header">
          <div>
-          <h2>Mediciones por Ambiente</h2>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--win-orange)' }}>
+            <Activity size={24} /> Mediciones por Ambiente
+          </h2>
           <p className="form-mediciones-subtitle">
             Registra las velocidades en cada habitación del domicilio
             {mediciones.length > 0 && (
