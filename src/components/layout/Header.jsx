@@ -96,9 +96,13 @@ export const Header = () => {
       TECNICO:       '#00C853'
     };
     const color = colors[rolLabel] || 'var(--text-secondary)';
+    // Para supervisores, mostrar su clasificación SGI/SGA en lugar de "SUPERVISOR"
+    const labelText = (rolLabel === 'SUPERVISOR' && session.supervisor_tipo)
+      ? session.supervisor_tipo
+      : rolLabel;
     return (
       <span className="header-rol-badge" style={{ color, borderColor: color }}>
-        {rolLabel}
+        {labelText}
       </span>
     );
   };

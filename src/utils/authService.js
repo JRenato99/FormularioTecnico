@@ -139,7 +139,7 @@ export const bootstrapSession = async () => {
 
   const { data: profile, error: profileError } = await supabase
     .from('win_users')
-    .select('id, email, role, cuadrilla, nombre')
+    .select('id, email, role, cuadrilla, nombre, supervisor_tipo')
     .eq('id', session.user.id)
     .single();
 
@@ -151,6 +151,7 @@ export const bootstrapSession = async () => {
     role: profile.role,
     cuadrilla: profile.cuadrilla,
     nombre: profile.nombre,
+    supervisor_tipo: profile.supervisor_tipo,
   };
   return _session;
 };
@@ -200,7 +201,8 @@ export const login = async (email, password, cuadrilla = '') => {
     email: userProfile.email,
     role: userProfile.role,
     cuadrilla: userProfile.cuadrilla,
-    nombre: userProfile.nombre
+    nombre: userProfile.nombre,
+    supervisor_tipo: userProfile.supervisor_tipo
   };
   _session = session;
   await addAuditLog('LOGIN', 'SESION', email);
@@ -262,10 +264,18 @@ export const addUser = async (data) => {
   if (!pwdCheck.ok) return { success: false, error: pwdCheck.error };
   if (!data.role) return { success: false, error: 'Todos los campos son obligatorios.' };
 
+  // Un SUPERVISOR debe estar clasificado como SGI o SGA
+  if (data.role === 'SUPERVISOR' && !['SGI', 'SGA'].includes(data.supervisor_tipo)) {
+    return { success: false, error: 'Debes asignar el tipo de supervisor (SGI o SGA).' };
+  }
+
   // Para Admin y Supervisor, cuadrilla es NULL
   const cuadrillaFinal = (data.role === 'ADMINISTRADOR' || data.role === 'SUPERVISOR')
     ? null
     : (data.cuadrilla || null);
+
+  // supervisor_tipo solo aplica a SUPERVISOR; NULL para los demás roles
+  const supervisorTipoFinal = data.role === 'SUPERVISOR' ? data.supervisor_tipo : null;
 
   const { data: edgeData, error: edgeError } = await supabase.functions.invoke('manager-user', {
     body: { action: 'create', email: data.email, password: data.password, role: data.role }
@@ -283,6 +293,7 @@ export const addUser = async (data) => {
     role: data.role,
     estado: 'ACTIVO',
     cuadrilla: cuadrillaFinal,
+    supervisor_tipo: supervisorTipoFinal,
     must_change_password: true   // ← Siempre TRUE al crear
   }]);
 
@@ -292,7 +303,29 @@ export const addUser = async (data) => {
     return { success: false, error: 'Error al crear perfil: ' + dbError.message };
   }
 
-  await addAuditLog('CREAR_USUARIO', 'USUARIO', data.email, { rol: data.role, cuadrilla: cuadrillaFinal });
+  await addAuditLog('CREAR_USUARIO', 'USUARIO', data.email, { rol: data.role, cuadrilla: cuadrillaFinal, supervisorTipo: supervisorTipoFinal });
+  return { success: true };
+};
+
+/**
+ * Cambia la clasificación (SGI/SGA) de un supervisor existente.
+ * Solo aplica a usuarios con rol SUPERVISOR.
+ */
+export const updateSupervisorTipo = async (email, tipo) => {
+  if (!['SGI', 'SGA'].includes(tipo)) {
+    return { success: false, error: 'Tipo inválido. Debe ser SGI o SGA.' };
+  }
+
+  const { data: users } = await supabase.from('win_users').select('id, role').eq('email', email);
+  if (!users || users.length === 0) return { success: false, error: 'Usuario no encontrado.' };
+  if (users[0].role !== 'SUPERVISOR') {
+    return { success: false, error: 'Solo los supervisores pueden tener tipo SGI/SGA.' };
+  }
+
+  const { error } = await supabase.from('win_users').update({ supervisor_tipo: tipo }).eq('email', email);
+  if (error) return { success: false, error: error.message };
+
+  await addAuditLog('EDITAR_SUPERVISOR_TIPO', 'USUARIO', email, { tipo });
   return { success: true };
 };
 

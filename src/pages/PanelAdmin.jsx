@@ -13,7 +13,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import TopologiaRed from '../components/features/TopologiaRed';
 import { supabase } from '../utils/supabaseClient';
-import { getSession, getUsers, addUser, toggleBlock, deleteUser, crearNotificacion, addAuditLog, resetUserPassword } from '../utils/authService';
+import { getSession, getUsers, addUser, toggleBlock, deleteUser, crearNotificacion, addAuditLog, resetUserPassword, updateSupervisorTipo } from '../utils/authService';
 import { getOrders, updateOrderStatus, getAuditLogs } from '../utils/databaseService';
 import { useUI } from '../components/ui/Modal.jsx';
 import { getRssiStyle } from '../utils/constants';
@@ -50,12 +50,16 @@ const PanelAdmin = () => {
   const [usuarios, setUsuarios]         = useState([]);
   const [auditLogs, setAuditLogs]       = useState([]);
   const [showAddUser, setShowAddUser]   = useState(false);
-  const [newUser, setNewUser]           = useState({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '' });
+  const [newUser, setNewUser]           = useState({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '', supervisor_tipo: '' });
   const [userError, setUserError]       = useState('');
   // Estado para modal de reset de contraseña
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetTarget, setResetTarget]       = useState(null);
   const [resetPwd, setResetPwd]             = useState('');
+  // Estado para modal de edición de tipo de supervisor (SGI/SGA)
+  const [showEditTipo, setShowEditTipo]     = useState(false);
+  const [editTipoTarget, setEditTipoTarget] = useState(null);
+  const [editTipoValue, setEditTipoValue]   = useState('SGI');
 
   // ─── Modal de motivo de rechazo ───────────────────────────────────────
   const [showRechazoModal, setShowRechazoModal] = useState(false);
@@ -246,8 +250,24 @@ const PanelAdmin = () => {
     if (!result.success) { setUserError(result.error); return; }
     getUsers().then(setUsuarios);
     setShowAddUser(false);
-    setNewUser({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '' });
+    setNewUser({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '', supervisor_tipo: '' });
     showToast({ type: 'success', title: 'Usuario creado', message: `${newUser.email} fue creado exitosamente. Deberá crear su contraseña al primer ingreso.` });
+  };
+
+  // ─── Editar tipo de supervisor (SGI/SGA) ───────────────────────────────
+  const handleOpenEditTipo = (user) => {
+    setEditTipoTarget(user);
+    setEditTipoValue(user.supervisor_tipo || 'SGI');
+    setShowEditTipo(true);
+  };
+
+  const handleConfirmEditTipo = async () => {
+    const result = await updateSupervisorTipo(editTipoTarget.email, editTipoValue);
+    if (!result.success) { showToast({ type: 'error', title: 'Error', message: result.error }); return; }
+    getUsers().then(setUsuarios);
+    setShowEditTipo(false);
+    setEditTipoTarget(null);
+    showToast({ type: 'success', title: 'Tipo actualizado', message: `${editTipoTarget.email} ahora es ${editTipoValue}.` });
   };
 
   const handleToggleBlock = async (email) => {
@@ -636,6 +656,13 @@ const PanelAdmin = () => {
                     {newUser.role === 'TECNICO' && (
                       <Input label="Cuadrilla" placeholder="LIMA-NTE-01" value={newUser.cuadrilla} onChange={e => setNewUser({...newUser, cuadrilla: e.target.value})} />
                     )}
+                    {newUser.role === 'SUPERVISOR' && (
+                      <Select label="Tipo de Supervisor (*)" value={newUser.supervisor_tipo} onChange={e => setNewUser({...newUser, supervisor_tipo: e.target.value})} options={[
+                        { label: '— Seleccionar —', value: '' },
+                        { label: 'SGI (Instalación Nueva)', value: 'SGI' },
+                        { label: 'SGA (Post-Venta)', value: 'SGA' }
+                      ]} />
+                    )}
                   </div>
                   <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
                     <Button onClick={handleAddUser}>Guardar Usuario</Button>
@@ -661,7 +688,7 @@ const PanelAdmin = () => {
                           <td>{u.email}</td>
                           <td>
                             <span className="header-rol-badge" style={{ color: rolColors[u.role], borderColor: rolColors[u.role] }}>
-                              {u.role}
+                              {u.role === 'SUPERVISOR' && u.supervisor_tipo ? `SUPERVISOR · ${u.supervisor_tipo}` : u.role}
                             </span>
                           </td>
                           <td>{u.cuadrilla}</td>
@@ -673,6 +700,11 @@ const PanelAdmin = () => {
                           <td className="user-actions-cell">
                             {!isSelf && (
                               <>
+                                {u.role === 'SUPERVISOR' && (
+                                  <button className="icon-action-btn" onClick={() => handleOpenEditTipo(u)} title="Cambiar tipo (SGI/SGA)" style={{ color: '#1E90FF' }}>
+                                    <Edit2 size={16} />
+                                  </button>
+                                )}
                                 <button className="icon-action-btn" onClick={() => handleToggleBlock(u.email)} title={u.estado === 'Activo' ? 'Bloquear' : 'Desbloquear'}>
                                   {u.estado === 'Activo' ? <ShieldOff size={16} color="#ffa500" /> : <Shield size={16} color="#00C853" />}
                                 </button>
@@ -811,6 +843,33 @@ const PanelAdmin = () => {
             <Button variant="secondary" style={{ flex: 1 }} onClick={() => setShowResetModal(false)}>Cancelar</Button>
             <Button style={{ flex: 1, background: '#1E90FF', borderColor: '#1E90FF' }} onClick={handleResetPassword}>
               <Key size={16} /> Enviar Email de Reset
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )}
+
+    {/* Modal: Editar tipo de supervisor (SGI/SGA) */}
+    {showEditTipo && editTipoTarget && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+        <Card style={{ width: '100%', maxWidth: '420px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, color: '#1E90FF', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Edit2 size={20} /> Tipo de Supervisor
+            </h3>
+            <button onClick={() => setShowEditTipo(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.4rem' }}>×</button>
+          </div>
+          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+            Define qué órdenes podrá ver <strong style={{ color: '#1E90FF' }}>{editTipoTarget.email}</strong>.
+          </p>
+          <Select label="Clasificación" value={editTipoValue} onChange={e => setEditTipoValue(e.target.value)} options={[
+            { label: 'SGI (Instalación Nueva)', value: 'SGI' },
+            { label: 'SGA (Post-Venta)', value: 'SGA' }
+          ]} />
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <Button variant="secondary" style={{ flex: 1 }} onClick={() => setShowEditTipo(false)}>Cancelar</Button>
+            <Button style={{ flex: 1, background: '#1E90FF', borderColor: '#1E90FF' }} onClick={handleConfirmEditTipo}>
+              Guardar Cambio
             </Button>
           </div>
         </Card>
