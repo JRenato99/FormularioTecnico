@@ -205,11 +205,19 @@
 .topologia-card.exporting {
   overflow: visible !important;
   max-width: none !important;
+  min-width: 0;
 }
 .topologia-card.exporting .tree-wrapper {
   overflow: visible !important;
   max-width: none !important;
-  justify-content: center;
+  /* CRITICO: alineamos al inicio (no center) para que el contenido empiece en x=0.
+     Si el árbol mide más que el wrapper, con center los nodos extremos salen por
+     la izquierda en coordenadas negativas y html2canvas los recorta. */
+  justify-content: flex-start;
+  width: max-content;
+}
+.topologia-card.exporting .tree-wrapper .tree-root {
+  margin: 0;
 }
 
 .tree-root {
