@@ -206,6 +206,9 @@
   overflow: visible !important;
   max-width: none !important;
   min-width: 0;
+  /* La card crece para envolver TODO el árbol (no solo el ancho del grid).
+     Así el panel oscuro redondeado abarca todos los nodos de forma uniforme. */
+  width: max-content !important;
 }
 .topologia-card.exporting .tree-wrapper {
   overflow: visible !important;
