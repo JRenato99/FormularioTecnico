@@ -264,9 +264,9 @@ export const addUser = async (data) => {
   if (!pwdCheck.ok) return { success: false, error: pwdCheck.error };
   if (!data.role) return { success: false, error: 'Todos los campos son obligatorios.' };
 
-  // Un SUPERVISOR debe estar clasificado como SGI o SGA
-  if (data.role === 'SUPERVISOR' && !['SGI', 'SGA'].includes(data.supervisor_tipo)) {
-    return { success: false, error: 'Debes asignar el tipo de supervisor (SGI o SGA).' };
+  // Un SUPERVISOR debe estar clasificado como SGI, SGA o CONSULTOR (solo lectura)
+  if (data.role === 'SUPERVISOR' && !['SGI', 'SGA', 'CONSULTOR'].includes(data.supervisor_tipo)) {
+    return { success: false, error: 'Debes asignar el tipo de supervisor (SGI, SGA o Consultor).' };
   }
 
   // Para Admin y Supervisor, cuadrilla es NULL
@@ -312,14 +312,14 @@ export const addUser = async (data) => {
  * Solo aplica a usuarios con rol SUPERVISOR.
  */
 export const updateSupervisorTipo = async (email, tipo) => {
-  if (!['SGI', 'SGA'].includes(tipo)) {
-    return { success: false, error: 'Tipo inválido. Debe ser SGI o SGA.' };
+  if (!['SGI', 'SGA', 'CONSULTOR'].includes(tipo)) {
+    return { success: false, error: 'Tipo inválido. Debe ser SGI, SGA o Consultor.' };
   }
 
   const { data: users } = await supabase.from('win_users').select('id, role').eq('email', email);
   if (!users || users.length === 0) return { success: false, error: 'Usuario no encontrado.' };
   if (users[0].role !== 'SUPERVISOR') {
-    return { success: false, error: 'Solo los supervisores pueden tener tipo SGI/SGA.' };
+    return { success: false, error: 'Solo los supervisores pueden tener tipo SGI/SGA/Consultor.' };
   }
 
   const { error } = await supabase.from('win_users').update({ supervisor_tipo: tipo }).eq('email', email);

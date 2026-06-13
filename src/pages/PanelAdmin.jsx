@@ -317,12 +317,19 @@ const PanelAdmin = () => {
   );
 
   const isAdmin = session?.role === 'ADMINISTRADOR';
+  // CONSULTOR: supervisor de SOLO LECTURA. Ve todas las órdenes y descarga sus
+  // reportes, pero no aprueba/rechaza (los botones se ocultan y RLS lo bloquea).
+  const isConsultor = session?.role === 'SUPERVISOR' && session?.supervisor_tipo === 'CONSULTOR';
 
   // ─── Título dinámico según rol ─────────────────────────────────────────
-  const panelTitle = isAdmin ? 'Panel de Administración' : 'Panel de Supervisión';
-  const panelSubtitle = isAdmin 
-    ? 'Control total: órdenes, usuarios y reportes.' 
-    : 'Revisión y aprobación de reportes técnicos.';
+  const panelTitle = isAdmin
+    ? 'Panel de Administración'
+    : isConsultor ? 'Panel de Consulta' : 'Panel de Supervisión';
+  const panelSubtitle = isAdmin
+    ? 'Control total: órdenes, usuarios y reportes.'
+    : isConsultor
+      ? 'Vista de consulta: todas las órdenes y descarga de reportes (solo lectura).'
+      : 'Revisión y aprobación de reportes técnicos.';
 
   return (
     <>
@@ -426,6 +433,17 @@ const PanelAdmin = () => {
                     {/* ─── Badges Resumen + Acciones ──────────────────── */}
                     <div className="orden-summary-row">
                       <div className="orden-badges">
+                        {/* Tipo de orden: Instalación Nueva (SGI) / Post-Venta (SGA) */}
+                        <span
+                          className="badge"
+                          style={ orden.tipoServicio === 'Post-Venta'
+                            ? { color: '#1E90FF', borderColor: '#1E90FF', background: 'rgba(30,144,255,0.08)' }
+                            : { color: 'var(--win-orange)', borderColor: 'var(--win-orange)', background: 'rgba(255,107,0,0.08)' } }
+                        >
+                          {orden.tipoServicio === 'Post-Venta'
+                            ? <><Tv size={14} /> Post-Venta (SGA)</>
+                            : <><RouterIcon size={14} /> Instalación (SGI)</>}
+                        </span>
                         <span className="badge"><RouterIcon size={14} /> {orden.equipos?.length || 0} APs</span>
                         <span className="badge"><Globe size={14} /> {orden.mediciones?.length || 0} Mediciones</span>
                         <span className="badge"><Tv size={14} /> {orden.winboxes?.length || 0} Winbox</span>
@@ -435,7 +453,7 @@ const PanelAdmin = () => {
                         <Button variant="secondary" onClick={() => descargarCSV(orden)} style={{ fontSize: '0.8rem' }}>
                           CSV
                         </Button>
-                        {orden.status === 'PENDIENTE' && (
+                        {orden.status === 'PENDIENTE' && !isConsultor && (
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <Button onClick={() => aprobarOrden(orden.codigoCliente)} style={{ background: '#00C853', color: '#fff', borderColor: '#00C853', fontSize: '0.8rem' }}>
                               <CheckCircle size={14} /> Aprobar
@@ -660,7 +678,8 @@ const PanelAdmin = () => {
                       <Select label="Tipo de Supervisor (*)" value={newUser.supervisor_tipo} onChange={e => setNewUser({...newUser, supervisor_tipo: e.target.value})} options={[
                         { label: '— Seleccionar —', value: '' },
                         { label: 'SGI (Instalación Nueva)', value: 'SGI' },
-                        { label: 'SGA (Post-Venta)', value: 'SGA' }
+                        { label: 'SGA (Post-Venta)', value: 'SGA' },
+                        { label: 'Consultor (ve todo, solo lectura)', value: 'CONSULTOR' }
                       ]} />
                     )}
                   </div>
@@ -864,7 +883,8 @@ const PanelAdmin = () => {
           </p>
           <Select label="Clasificación" value={editTipoValue} onChange={e => setEditTipoValue(e.target.value)} options={[
             { label: 'SGI (Instalación Nueva)', value: 'SGI' },
-            { label: 'SGA (Post-Venta)', value: 'SGA' }
+            { label: 'SGA (Post-Venta)', value: 'SGA' },
+            { label: 'Consultor (ve todo, solo lectura)', value: 'CONSULTOR' }
           ]} />
           <div style={{ display: 'flex', gap: '1rem' }}>
             <Button variant="secondary" style={{ flex: 1 }} onClick={() => setShowEditTipo(false)}>Cancelar</Button>

@@ -80,10 +80,14 @@ export const Header = () => {
 
   /**
    * Cierra la sesión activa y redirige al login.
+   * IMPORTANTE: se espera (await) a que logout() complete `supabase.auth.signOut()`
+   * ANTES de navegar. Si se navega antes, Login.jsx (bootstrapSession) detecta la
+   * sesión aún viva y rebota al usuario de vuelta a la app en lugar de cerrar sesión.
+   * `replace: true` evita que el botón "atrás" regrese a la pantalla autenticada.
    */
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
   };
 
   /**
