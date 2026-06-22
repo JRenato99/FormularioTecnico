@@ -183,8 +183,9 @@ export const updateOrderStatus = async (codigoCliente, nuevoEstado, motivo = '')
     updated_at: new Date().toISOString()
   };
 
-  // Si hay motivo de rechazo, lo persistimos directamente en la fila de la orden
-  if (motivo) {
+  if (nuevoEstado === 'PENDIENTE') {
+    updatePayload.motivo_rechazo = null;
+  } else if (motivo) {
     updatePayload.motivo_rechazo = motivo;
   }
 

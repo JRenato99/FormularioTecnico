@@ -76,9 +76,12 @@ export const getNotificaciones = async (tecnicoEmail) => {
 };
 
 export const crearNotificacion = async (tecnicoEmail, tipo, codigoCliente, motivo = '') => {
-  const msg = tipo === 'RECHAZADO'
-    ? `Tu formulario de la orden ${codigoCliente} fue RECHAZADO. Motivo: ${motivo || 'Sin especificar'}`
-    : `Tu formulario de la orden ${codigoCliente} fue APROBADO. ✅`;
+  const msgs = {
+    APROBADO:  `Tu formulario de la orden ${codigoCliente} fue APROBADO. ✅`,
+    RECHAZADO: `Tu formulario de la orden ${codigoCliente} fue RECHAZADO. Motivo: ${motivo || 'Sin especificar'}`,
+    REVERTIDO: `Tu orden ${codigoCliente} fue devuelta a Pendiente para revisión.${motivo ? ' Motivo: ' + motivo : ''}`,
+  };
+  const msg = msgs[tipo] ?? msgs.APROBADO;
 
   const { error } = await supabase.from('win_notificaciones').insert([{
     tecnico_email: tecnicoEmail,

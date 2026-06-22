@@ -7,7 +7,7 @@ import {
   AlertCircle, Users, HardDrive, ChevronDown, ChevronUp,
   Search, Download, Plus, Edit2, Trash2, MoreHorizontal,
   RefreshCw, LogOut, LayoutDashboard, History, Shield,
-  Router as RouterIcon, Globe, Tv, ShieldOff, Wifi, Key, Building2, X
+  Router as RouterIcon, Globe, Tv, ShieldOff, Wifi, Key, Building2, X, RotateCcw
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -72,6 +72,11 @@ const PanelAdmin = () => {
   const [showRechazoModal, setShowRechazoModal] = useState(false);
   const [ordenParaRechazar, setOrdenParaRechazar] = useState(null);
   const [motivoRechazo, setMotivoRechazo]       = useState('');
+
+  // ─── Modal de revertir a PENDIENTE (solo ADMINISTRADOR) ───────────────
+  const [showRevertirModal, setShowRevertirModal] = useState(false);
+  const [ordenParaRevertir, setOrdenParaRevertir] = useState(null);
+  const [motivoRevertir, setMotivoRevertir]       = useState('');
 
   // ─── Validar sesión ────────────────────────────────────────────────────
   useEffect(() => {
@@ -198,6 +203,36 @@ const PanelAdmin = () => {
     setOrdenParaRechazar(orden);
     setMotivoRechazo('');
     setShowRechazoModal(true);
+  };
+
+  // ─── Revertir orden APROBADA → PENDIENTE (solo ADMINISTRADOR) ────────
+  const abrirModalRevertir = (orden) => {
+    setOrdenParaRevertir(orden);
+    setMotivoRevertir('');
+    setShowRevertirModal(true);
+  };
+
+  const confirmarRevertir = async () => {
+    if (!motivoRevertir.trim()) {
+      showToast({ type: 'warning', title: 'Campo requerido', message: 'Debes ingresar el motivo de la reversión.' });
+      return;
+    }
+    const codigoCliente = ordenParaRevertir.codigoCliente;
+
+    const result = await updateOrderStatus(codigoCliente, 'PENDIENTE');
+    if (!result.success) { showToast({ type: 'error', title: 'Error', message: result.error }); return; }
+
+    setOrdenes(prev => prev.map(o =>
+      o.codigoCliente === codigoCliente ? { ...o, status: 'PENDIENTE', motivoRechazo: null } : o
+    ));
+    if (ordenParaRevertir?.tecnicoEmail) {
+      await crearNotificacion(ordenParaRevertir.tecnicoEmail, 'REVERTIDO', codigoCliente, motivoRevertir.trim());
+    }
+    addAuditLog('REVERTIR_A_PENDIENTE', 'ORDEN', codigoCliente, { motivo: motivoRevertir.trim(), gestionadoPor: session.email });
+    showToast({ type: 'info', title: 'Orden revertida', message: `Orden ${codigoCliente} devuelta a Pendiente.` });
+    setShowRevertirModal(false);
+    setOrdenParaRevertir(null);
+    setMotivoRevertir('');
   };
 
   // ─── Confirmar rechazo con motivo (Supabase) ─────────────────────────
@@ -528,6 +563,11 @@ const PanelAdmin = () => {
                               <XCircle size={14} /> Rechazar
                             </Button>
                           </div>
+                        )}
+                        {orden.status === 'APROBADO' && session?.role === 'ADMINISTRADOR' && (
+                          <Button onClick={() => abrirModalRevertir(orden)} style={{ background: '#F57F17', color: '#fff', borderColor: '#F57F17', fontSize: '0.8rem' }}>
+                            <RotateCcw size={14} /> Revertir a Pendiente
+                          </Button>
                         )}
                         <button 
                           className="expand-btn" 
@@ -1039,6 +1079,40 @@ const PanelAdmin = () => {
             </Button>
             <Button style={{ flex: 1, background: '#FF3D00', color: '#fff', borderColor: '#FF3D00' }} onClick={confirmarRechazo}>
               <XCircle size={16} /> Confirmar Rechazo
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )}
+    {/* ─── MODAL REVERTIR A PENDIENTE ────────────────────────────────── */}
+    {showRevertirModal && ordenParaRevertir && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+        <Card style={{ width: '100%', maxWidth: '480px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, color: '#F57F17', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <RotateCcw size={20} /> Revertir a Pendiente
+            </h3>
+            <button onClick={() => setShowRevertirModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.2rem' }}>×</button>
+          </div>
+          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+            La orden <strong style={{ color: 'var(--text-primary)' }}>{ordenParaRevertir.codigoCliente}</strong> de <strong style={{ color: 'var(--win-orange)' }}>{ordenParaRevertir.tecnicoEmail}</strong> volverá a estado <strong>PENDIENTE</strong> para revisión.
+          </p>
+          <div>
+            <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-primary)' }}>Motivo de la reversión (*)</label>
+            <textarea
+              value={motivoRevertir}
+              onChange={e => setMotivoRevertir(e.target.value)}
+              placeholder="Ej: Se detectó un error en los datos de topología. Por favor corrige y vuelve a enviar."
+              rows={4}
+              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem', color: 'var(--text-primary)', fontSize: '0.9rem', resize: 'vertical' }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <Button variant="secondary" style={{ flex: 1 }} onClick={() => setShowRevertirModal(false)}>
+              Cancelar
+            </Button>
+            <Button style={{ flex: 1, background: '#F57F17', color: '#fff', borderColor: '#F57F17' }} onClick={confirmarRevertir}>
+              <RotateCcw size={16} /> Confirmar Reversión
             </Button>
           </div>
         </Card>
