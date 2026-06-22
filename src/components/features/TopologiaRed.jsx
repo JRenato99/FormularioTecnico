@@ -9,7 +9,7 @@ import './Topologia.css';
 /**
  * Módulo Arquitectónico: Topología de Red
  */
-const TopologiaRed = ({ equipos, setEquipos, winboxes = [], televisores = [], isExporting, listaUbicaciones, onAgregarUbicacion }) => {
+const TopologiaRed = ({ equipos, setEquipos, winboxes = [], televisores = [], isExporting, listaUbicaciones, onAgregarUbicacion, onRemoveEquipos }) => {
 
   const { showToast } = useUI();
   const [showAddModal, setShowAddModal] = useState(false);
@@ -302,6 +302,8 @@ const TopologiaRed = ({ equipos, setEquipos, winboxes = [], televisores = [], is
 
     const idsToRemove = [id, ...getChildrenIds(id)];
     setEquipos(equipos.filter(e => !idsToRemove.includes(e.id)));
+    // Notificar al padre para limpiar mediciones/winboxes/televisores huérfanos
+    if (onRemoveEquipos) onRemoveEquipos(idsToRemove);
   };
 
   // ============================================================

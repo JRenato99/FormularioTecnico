@@ -102,6 +102,12 @@ const FormularioTecnico = () => {
   // MÉTODOS DE LA UI
   // ==========================================
 
+  const handleRemoveEquipos = (idsToRemove) => {
+    setMediciones(prev => prev.filter(m => !idsToRemove.includes(m.equipoId)));
+    setWinboxes(prev => prev.filter(w => !idsToRemove.includes(w.equipoId)));
+    setTelevisores(prev => prev.filter(t => !idsToRemove.includes(t.equipoId)));
+  };
+
   const handleAgregarUbicacionCustom = (nueva) => {
     if (nueva && nueva.trim() !== '' && !listaUbicaciones.includes(nueva)) {
       setListaUbicaciones(prev => [...prev.filter(u => u !== 'Otro'), nueva, 'Otro']);
@@ -386,6 +392,7 @@ const FormularioTecnico = () => {
                isExporting={isExporting}
                listaUbicaciones={listaUbicaciones}
                onAgregarUbicacion={handleAgregarUbicacionCustom}
+               onRemoveEquipos={handleRemoveEquipos}
             />
           </div>
           
