@@ -43,8 +43,8 @@ const checkHardwareUniqueness = async (codigoCliente, equipos = [], winboxes = [
   });
 
   winboxes.forEach(wb => {
-    if (wb.sn && wb.sn.trim() !== '') {
-      sns.push(wb.sn.trim());
+    if (wb.serialNumber && wb.serialNumber.trim() !== '') {
+      sns.push(wb.serialNumber.trim());
     }
   });
 
