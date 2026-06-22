@@ -212,3 +212,26 @@ export const getAuditLogs = async () => {
   return data;
 };
 
+// ─── EMPRESAS Y CUADRILLAS (para combos dinámicos) ──────────────────────
+export const getEmpresas = async () => {
+  const { data, error } = await supabase
+    .from('win_empresas')
+    .select('id, nombre')
+    .eq('activo', true)
+    .order('nombre');
+  if (error) { console.error('Error obteniendo empresas:', error); return []; }
+  return data || [];
+};
+
+export const getCuadrillas = async (empresaId) => {
+  if (!empresaId) return [];
+  const { data, error } = await supabase
+    .from('win_cuadrillas')
+    .select('id, codigo')
+    .eq('empresa_id', empresaId)
+    .eq('activo', true)
+    .order('codigo');
+  if (error) { console.error('Error obteniendo cuadrillas:', error); return []; }
+  return data || [];
+};
+

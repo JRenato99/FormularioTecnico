@@ -14,7 +14,7 @@ import { jsPDF } from 'jspdf';
 import TopologiaRed from '../components/features/TopologiaRed';
 import { supabase } from '../utils/supabaseClient';
 import { getSession, getUsers, addUser, toggleBlock, deleteUser, crearNotificacion, addAuditLog, resetUserPassword, updateSupervisorTipo } from '../utils/authService';
-import { getOrders, updateOrderStatus, getAuditLogs } from '../utils/databaseService';
+import { getOrders, updateOrderStatus, getAuditLogs, getEmpresas, getCuadrillas } from '../utils/databaseService';
 import { useUI } from '../components/ui/Modal.jsx';
 import { getRssiStyle } from '../utils/constants';
 import './PanelAdmin.css';
@@ -50,7 +50,9 @@ const PanelAdmin = () => {
   const [usuarios, setUsuarios]         = useState([]);
   const [auditLogs, setAuditLogs]       = useState([]);
   const [showAddUser, setShowAddUser]   = useState(false);
-  const [newUser, setNewUser]           = useState({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '', supervisor_tipo: '' });
+  const [newUser, setNewUser]           = useState({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '', supervisor_tipo: '', empresa_id: '', dni: '', telefono: '' });
+  const [empresas, setEmpresas]         = useState([]);
+  const [cuadrillasForm, setCuadrillasForm] = useState([]);
   const [userError, setUserError]       = useState('');
   // Estado para modal de reset de contraseña
   const [showResetModal, setShowResetModal] = useState(false);
@@ -78,6 +80,7 @@ const PanelAdmin = () => {
     cargarOrdenes();
     if (sess.role === 'ADMINISTRADOR') {
       getUsers().then(setUsuarios);
+      getEmpresas().then(setEmpresas);
     }
   }, [navigate]);
 
@@ -250,7 +253,8 @@ const PanelAdmin = () => {
     if (!result.success) { setUserError(result.error); return; }
     getUsers().then(setUsuarios);
     setShowAddUser(false);
-    setNewUser({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '', supervisor_tipo: '' });
+    setCuadrillasForm([]);
+    setNewUser({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '', supervisor_tipo: '', empresa_id: '', dni: '', telefono: '' });
     showToast({ type: 'success', title: 'Usuario creado', message: `${newUser.email} fue creado exitosamente. Deberá crear su contraseña al primer ingreso.` });
   };
 
@@ -671,9 +675,34 @@ const PanelAdmin = () => {
                       { label: 'Supervisor', value: 'SUPERVISOR' },
                       { label: 'Administrador', value: 'ADMINISTRADOR' }
                     ]} />
-                    {newUser.role === 'TECNICO' && (
-                      <Input label="Cuadrilla" placeholder="LIMA-NTE-01" value={newUser.cuadrilla} onChange={e => setNewUser({...newUser, cuadrilla: e.target.value})} />
-                    )}
+                    {newUser.role === 'TECNICO' && (<>
+                      <Select
+                        label="Empresa contratista (*)"
+                        value={newUser.empresa_id}
+                        onChange={async e => {
+                          const id = e.target.value;
+                          const cuadrillas = id ? await getCuadrillas(id) : [];
+                          setCuadrillasForm(cuadrillas);
+                          setNewUser({ ...newUser, empresa_id: id, cuadrilla: '' });
+                        }}
+                        options={[
+                          { label: '— Seleccionar empresa —', value: '' },
+                          ...empresas.map(em => ({ label: em.nombre, value: em.id }))
+                        ]}
+                      />
+                      <Select
+                        label="Cuadrilla (*)"
+                        value={newUser.cuadrilla}
+                        onChange={e => setNewUser({ ...newUser, cuadrilla: e.target.value })}
+                        options={[
+                          { label: newUser.empresa_id ? '— Seleccionar cuadrilla —' : '— Selecciona primero la empresa —', value: '' },
+                          ...cuadrillasForm.map(c => ({ label: c.codigo, value: c.codigo }))
+                        ]}
+                        disabled={!newUser.empresa_id}
+                      />
+                      <Input label="DNI" placeholder="12345678" value={newUser.dni} onChange={e => setNewUser({ ...newUser, dni: e.target.value })} />
+                      <Input label="Teléfono" placeholder="987654321" value={newUser.telefono} onChange={e => setNewUser({ ...newUser, telefono: e.target.value })} />
+                    </>)}
                     {newUser.role === 'SUPERVISOR' && (
                       <Select label="Tipo de Supervisor (*)" value={newUser.supervisor_tipo} onChange={e => setNewUser({...newUser, supervisor_tipo: e.target.value})} options={[
                         { label: '— Seleccionar —', value: '' },

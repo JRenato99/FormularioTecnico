@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, Input, Button, Select } from '../components/ui';
 import { Wifi, ArrowRight, ShieldCheck, AlertCircle, Eye, EyeOff, Key, CheckCircle } from 'lucide-react';
 import { login, getSession, bootstrapSession, isValidEmail, changePassword } from '../utils/authService';
+import { getEmpresas, getCuadrillas } from '../utils/databaseService';
 import { useUI } from '../components/ui/Modal.jsx';
 import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { supabase } from '../utils/supabaseClient';
@@ -25,7 +26,9 @@ const Login = () => {
   const [password, setPassword]               = useState('');
   const [showPassword, setShowPassword]       = useState(false);
   const [cuadrilla, setCuadrilla]             = useState('');
-  const [cuadrillaCustom, setCuadrillaCustom] = useState('');
+  const [empresas, setEmpresas]               = useState([]);
+  const [cuadrillasList, setCuadrillasList]   = useState([]);
+  const [empresaId, setEmpresaId]             = useState('');
   const [errorMsg, setErrorMsg]               = useState('');
   const [emailError, setEmailError]           = useState('');
   const [isLoading, setIsLoading]             = useState(false);
@@ -41,17 +44,6 @@ const Login = () => {
   const [pwdError, setPwdError]             = useState('');
   const [isSavingPwd, setIsSavingPwd]       = useState(false);
 
-  // ─── Catálogo de cuadrillas ───────────────────────────────────────────
-  const opcionesCuadrilla = [
-    { label: 'Seleccione su cuadrilla...', value: '' },
-    { label: 'LIMA-NTE-01 (Los Olivos/SMP)', value: 'LIMA-NTE-01' },
-    { label: 'LIMA-SUR-05 (Surco/Miraflores)', value: 'LIMA-SUR-05' },
-    { label: 'LIMA-ESTE-03 (SJL/Ate)', value: 'LIMA-ESTE-03' },
-    { label: 'CALLAO-02 (Bellavista/La Perla)', value: 'CALLAO-02' },
-    { label: 'PROV-PIURA-01', value: 'PROV-PIURA-01' },
-    { label: 'Otro (Especificar)', value: 'Otro' }
-  ];
-
   // Redirigir si ya tiene sesión activa. Usamos bootstrapSession (async) porque
   // la sesión ya no se espeja en localStorage: se reconstruye desde el JWT real
   // de Supabase, que sí persiste entre recargas.
@@ -61,7 +53,15 @@ const Login = () => {
         navigate(session.role === 'TECNICO' ? '/buscar' : '/admin');
       }
     });
+    getEmpresas().then(setEmpresas);
   }, [navigate]);
+
+  const handleEmpresaChange = async (e) => {
+    const id = e.target.value;
+    setEmpresaId(id);
+    setCuadrilla('');
+    setCuadrillasList(id ? await getCuadrillas(id) : []);
+  };
 
   const handleEmailBlur = () => {
     if (email && !isValidEmail(email)) {
@@ -127,10 +127,7 @@ const Login = () => {
       return;
     }
 
-    // Determinar cuadrilla a validar
-    const finalCuadrilla = cuadrilla === 'Otro' ? cuadrillaCustom : cuadrilla;
-
-    const result = await login(email, password, finalCuadrilla);
+    const result = await login(email, password, cuadrilla);
     setIsLoading(false);
 
     if (!result.success) {
@@ -253,22 +250,28 @@ const Login = () => {
               </button>
             </div>
 
-            {/* Cuadrilla */}
+            {/* Empresa (técnicos) */}
             <Select
-              label="Cuadrilla Asignada (*)"
+              label="Empresa Contratista"
+              value={empresaId}
+              onChange={handleEmpresaChange}
+              options={[
+                { label: 'Selecciona tu empresa (solo técnicos)', value: '' },
+                ...empresas.map(e => ({ label: e.nombre, value: e.id }))
+              ]}
+            />
+
+            {/* Cuadrilla — habilitada al seleccionar empresa */}
+            <Select
+              label="Cuadrilla Asignada"
               value={cuadrilla}
               onChange={e => setCuadrilla(e.target.value)}
-              options={opcionesCuadrilla}
+              options={[
+                { label: empresaId ? 'Selecciona tu cuadrilla' : '— Selecciona primero tu empresa —', value: '' },
+                ...cuadrillasList.map(c => ({ label: c.codigo, value: c.codigo }))
+              ]}
+              disabled={!empresaId}
             />
-            {cuadrilla === 'Otro' && (
-              <Input
-                label="Especificar Cuadrilla/Distrito"
-                placeholder="Ej: AQP-SUR-01"
-                value={cuadrillaCustom}
-                onChange={e => setCuadrillaCustom(e.target.value)}
-                required
-              />
-            )}
 
             <div className="login-captcha-section">
               <div className="login-captcha-label">
