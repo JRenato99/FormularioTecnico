@@ -139,7 +139,7 @@ export const bootstrapSession = async () => {
 
   const { data: profile, error: profileError } = await supabase
     .from('win_users')
-    .select('id, email, role, cuadrilla, nombre, supervisor_tipo')
+    .select('id, email, role, cuadrilla, nombre, supervisor_tipo, empresa_id, dni, telefono')
     .eq('id', session.user.id)
     .single();
 
@@ -152,6 +152,9 @@ export const bootstrapSession = async () => {
     cuadrilla: profile.cuadrilla,
     nombre: profile.nombre,
     supervisor_tipo: profile.supervisor_tipo,
+    empresa_id: profile.empresa_id,
+    dni: profile.dni,
+    telefono: profile.telefono,
   };
   return _session;
 };
@@ -160,11 +163,11 @@ export const initDefaultUsers = () => {};
 
 // ─── LOGIN con validación de cuadrilla ────────────────────────────────────────
 /**
- * Autentica al usuario contra Supabase Auth y valida su cuadrilla.
- * Para ADMINISTRADOR y SUPERVISOR la cuadrilla en BD es NULL → se omite la validación.
+ * Autentica al usuario contra Supabase Auth.
+ * La cuadrilla ya no se valida en el login — permanece en BD como referencia.
  * Retorna { success, session?, mustChangePassword?, error? }
  */
-export const login = async (email, password, cuadrilla = '') => {
+export const login = async (email, password) => {
   if (!isValidEmail(email)) return { success: false, error: 'Ingresa un correo válido.' };
 
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
@@ -186,14 +189,6 @@ export const login = async (email, password, cuadrilla = '') => {
     return { success: false, error: 'Tu cuenta ha sido bloqueada. Contacta al Administrador.' };
   }
 
-  // Validación de cuadrilla solo para TECNICO (Admin y Supervisor tienen cuadrilla NULL)
-  if (userProfile.role === 'TECNICO' && userProfile.cuadrilla) {
-    if (cuadrilla !== userProfile.cuadrilla) {
-      await supabase.auth.signOut();
-      return { success: false, error: 'WRONG_CUADRILLA', cuadrillaEsperada: userProfile.cuadrilla };
-    }
-  }
-
   // Poblar el caché de sesión EN MEMORIA (sin localStorage). Los guards de
   // React Router (ProtectedRoute) validan el JWT de Supabase, no este objeto.
   const session = {
@@ -202,7 +197,10 @@ export const login = async (email, password, cuadrilla = '') => {
     role: userProfile.role,
     cuadrilla: userProfile.cuadrilla,
     nombre: userProfile.nombre,
-    supervisor_tipo: userProfile.supervisor_tipo
+    supervisor_tipo: userProfile.supervisor_tipo,
+    empresa_id: userProfile.empresa_id,
+    dni: userProfile.dni,
+    telefono: userProfile.telefono,
   };
   _session = session;
   await addAuditLog('LOGIN', 'SESION', email);
@@ -269,10 +267,12 @@ export const addUser = async (data) => {
     return { success: false, error: 'Debes asignar el tipo de supervisor (SGI, SGA o Consultor).' };
   }
 
-  // Para Admin y Supervisor, cuadrilla es NULL
-  const cuadrillaFinal = (data.role === 'ADMINISTRADOR' || data.role === 'SUPERVISOR')
-    ? null
-    : (data.cuadrilla || null);
+  // Para Admin y Supervisor, cuadrilla/empresa/dni/telefono son NULL
+  const esTecnico = data.role === 'TECNICO';
+  const cuadrillaFinal    = esTecnico ? (data.cuadrilla    || null) : null;
+  const empresaIdFinal    = esTecnico ? (data.empresa_id   || null) : null;
+  const dniFinal          = esTecnico ? (data.dni          || null) : null;
+  const telefonoFinal     = esTecnico ? (data.telefono     || null) : null;
 
   // supervisor_tipo solo aplica a SUPERVISOR; NULL para los demás roles
   const supervisorTipoFinal = data.role === 'SUPERVISOR' ? data.supervisor_tipo : null;
@@ -294,7 +294,10 @@ export const addUser = async (data) => {
     estado: 'ACTIVO',
     cuadrilla: cuadrillaFinal,
     supervisor_tipo: supervisorTipoFinal,
-    must_change_password: true   // ← Siempre TRUE al crear
+    empresa_id: empresaIdFinal,
+    dni: dniFinal,
+    telefono: telefonoFinal,
+    must_change_password: true
   }]);
 
   if (dbError) {

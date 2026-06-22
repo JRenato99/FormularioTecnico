@@ -2,19 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../components/layout/Header';
 import { Card, Button, Input, Select } from '../components/ui';
-import { 
-  CheckCircle, XCircle, FileText, Send, Clock, User, Filter, 
-  AlertCircle, Users, HardDrive, ChevronDown, ChevronUp, 
-  Search, Download, Plus, Edit2, Trash2, MoreHorizontal, 
+import {
+  CheckCircle, XCircle, FileText, Send, Clock, User, Filter,
+  AlertCircle, Users, HardDrive, ChevronDown, ChevronUp,
+  Search, Download, Plus, Edit2, Trash2, MoreHorizontal,
   RefreshCw, LogOut, LayoutDashboard, History, Shield,
-  Router as RouterIcon, Globe, Tv, ShieldOff, Wifi, Key
+  Router as RouterIcon, Globe, Tv, ShieldOff, Wifi, Key, Building2, X
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import TopologiaRed from '../components/features/TopologiaRed';
 import { supabase } from '../utils/supabaseClient';
 import { getSession, getUsers, addUser, toggleBlock, deleteUser, crearNotificacion, addAuditLog, resetUserPassword, updateSupervisorTipo } from '../utils/authService';
-import { getOrders, updateOrderStatus, getAuditLogs } from '../utils/databaseService';
+import { getOrders, updateOrderStatus, getAuditLogs, getEmpresas, getCuadrillas, getEmpresasConCuadrillas, addEmpresa, deleteEmpresa, addCuadrilla, deleteCuadrilla } from '../utils/databaseService';
 import { useUI } from '../components/ui/Modal.jsx';
 import { getRssiStyle } from '../utils/constants';
 import './PanelAdmin.css';
@@ -50,7 +50,14 @@ const PanelAdmin = () => {
   const [usuarios, setUsuarios]         = useState([]);
   const [auditLogs, setAuditLogs]       = useState([]);
   const [showAddUser, setShowAddUser]   = useState(false);
-  const [newUser, setNewUser]           = useState({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '', supervisor_tipo: '' });
+  const [newUser, setNewUser]           = useState({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '', supervisor_tipo: '', empresa_id: '', dni: '', telefono: '' });
+  const [empresas, setEmpresas]               = useState([]);
+  const [cuadrillasForm, setCuadrillasForm]   = useState([]);
+  // Gestión de empresas/cuadrillas (pestaña EMPRESAS)
+  const [empresasDetalle, setEmpresasDetalle] = useState([]);
+  const [newEmpresaNombre, setNewEmpresaNombre] = useState('');
+  const [empresaError, setEmpresaError]       = useState('');
+  const [newCuadrilla, setNewCuadrilla]       = useState({});  // { [empresaId]: codigo }
   const [userError, setUserError]       = useState('');
   // Estado para modal de reset de contraseña
   const [showResetModal, setShowResetModal] = useState(false);
@@ -78,8 +85,57 @@ const PanelAdmin = () => {
     cargarOrdenes();
     if (sess.role === 'ADMINISTRADOR') {
       getUsers().then(setUsuarios);
+      getEmpresas().then(setEmpresas);
+      getEmpresasConCuadrillas().then(setEmpresasDetalle);
     }
   }, [navigate]);
+
+  const recargarEmpresas = async () => {
+    const [lista, detalle] = await Promise.all([getEmpresas(), getEmpresasConCuadrillas()]);
+    setEmpresas(lista);
+    setEmpresasDetalle(detalle);
+  };
+
+  const handleAddEmpresa = async () => {
+    setEmpresaError('');
+    if (!newEmpresaNombre.trim()) { setEmpresaError('Ingresa el nombre de la empresa.'); return; }
+    const result = await addEmpresa(newEmpresaNombre);
+    if (!result.success) { setEmpresaError(result.error); return; }
+    setNewEmpresaNombre('');
+    await recargarEmpresas();
+    showToast({ type: 'success', title: 'Empresa creada', message: `${newEmpresaNombre.toUpperCase()} fue registrada.` });
+  };
+
+  const handleDeleteEmpresa = (emp) => {
+    showModal({
+      type: 'warning',
+      title: `Eliminar empresa ${emp.nombre}`,
+      message: `¿Seguro? Se eliminarán también todas sus cuadrillas (${(emp.win_cuadrillas || []).length}). Los técnicos asignados quedarán sin empresa.`,
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        const result = await deleteEmpresa(emp.id);
+        if (!result.success) { showToast({ type: 'error', title: 'Error', message: result.error }); return; }
+        await recargarEmpresas();
+        showToast({ type: 'info', title: 'Empresa eliminada', message: emp.nombre });
+      }
+    });
+  };
+
+  const handleAddCuadrilla = async (empresaId) => {
+    const codigo = (newCuadrilla[empresaId] || '').trim();
+    if (!codigo) return;
+    const result = await addCuadrilla(empresaId, codigo);
+    if (!result.success) { showToast({ type: 'error', title: 'Error', message: result.error }); return; }
+    setNewCuadrilla(prev => ({ ...prev, [empresaId]: '' }));
+    await recargarEmpresas();
+  };
+
+  const handleDeleteCuadrilla = async (cuadrillaId, codigo) => {
+    const result = await deleteCuadrilla(cuadrillaId);
+    if (!result.success) { showToast({ type: 'error', title: 'Error', message: result.error }); return; }
+    await recargarEmpresas();
+    showToast({ type: 'info', title: `Cuadrilla ${codigo} eliminada` });
+  };
 
   useEffect(() => {
     if (activeTab === 'AUDITORIA') fetchAuditLogs();
@@ -250,7 +306,8 @@ const PanelAdmin = () => {
     if (!result.success) { setUserError(result.error); return; }
     getUsers().then(setUsuarios);
     setShowAddUser(false);
-    setNewUser({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '', supervisor_tipo: '' });
+    setCuadrillasForm([]);
+    setNewUser({ email: '', nombre: '', password: '', role: 'TECNICO', cuadrilla: '', supervisor_tipo: '', empresa_id: '', dni: '', telefono: '' });
     showToast({ type: 'success', title: 'Usuario creado', message: `${newUser.email} fue creado exitosamente. Deberá crear su contraseña al primer ingreso.` });
   };
 
@@ -361,7 +418,16 @@ const PanelAdmin = () => {
               </div>
             )}
             {isAdmin && (
-              <div 
+              <div
+                className={`stat-card stat-card--blue ${activeTab === 'EMPRESAS' ? 'stat-card--active-blue' : ''}`}
+                onClick={() => setActiveTab('EMPRESAS')}
+              >
+                <Building2 size={22} />
+                <span className="stat-label">Empresas</span>
+              </div>
+            )}
+            {isAdmin && (
+              <div
                 className={`stat-card ${activeTab === 'AUDITORIA' ? 'stat-card--active' : ''}`}
                 onClick={() => setActiveTab('AUDITORIA')}
               >
@@ -671,9 +737,34 @@ const PanelAdmin = () => {
                       { label: 'Supervisor', value: 'SUPERVISOR' },
                       { label: 'Administrador', value: 'ADMINISTRADOR' }
                     ]} />
-                    {newUser.role === 'TECNICO' && (
-                      <Input label="Cuadrilla" placeholder="LIMA-NTE-01" value={newUser.cuadrilla} onChange={e => setNewUser({...newUser, cuadrilla: e.target.value})} />
-                    )}
+                    {newUser.role === 'TECNICO' && (<>
+                      <Select
+                        label="Empresa contratista (*)"
+                        value={newUser.empresa_id}
+                        onChange={async e => {
+                          const id = e.target.value;
+                          const cuadrillas = id ? await getCuadrillas(id) : [];
+                          setCuadrillasForm(cuadrillas);
+                          setNewUser({ ...newUser, empresa_id: id, cuadrilla: '' });
+                        }}
+                        options={[
+                          { label: '— Seleccionar empresa —', value: '' },
+                          ...empresas.map(em => ({ label: em.nombre, value: em.id }))
+                        ]}
+                      />
+                      <Select
+                        label="Cuadrilla (*)"
+                        value={newUser.cuadrilla}
+                        onChange={e => setNewUser({ ...newUser, cuadrilla: e.target.value })}
+                        options={[
+                          { label: newUser.empresa_id ? '— Seleccionar cuadrilla —' : '— Selecciona primero la empresa —', value: '' },
+                          ...cuadrillasForm.map(c => ({ label: c.codigo, value: c.codigo }))
+                        ]}
+                        disabled={!newUser.empresa_id}
+                      />
+                      <Input label="DNI" placeholder="12345678" value={newUser.dni} onChange={e => setNewUser({ ...newUser, dni: e.target.value })} />
+                      <Input label="Teléfono" placeholder="987654321" value={newUser.telefono} onChange={e => setNewUser({ ...newUser, telefono: e.target.value })} />
+                    </>)}
                     {newUser.role === 'SUPERVISOR' && (
                       <Select label="Tipo de Supervisor (*)" value={newUser.supervisor_tipo} onChange={e => setNewUser({...newUser, supervisor_tipo: e.target.value})} options={[
                         { label: '— Seleccionar —', value: '' },
@@ -750,6 +841,114 @@ const PanelAdmin = () => {
         {/* ═══════════════════════════════════════════════════════════════
             PESTAÑA: AUDITORÍA
             ═══════════════════════════════════════════════════════════════ */}
+        {/* ═══════════════════════════════════════════════════════════════
+            PESTAÑA: EMPRESAS Y CUADRILLAS (solo ADMINISTRADOR)
+            ═══════════════════════════════════════════════════════════════ */}
+        {activeTab === 'EMPRESAS' && isAdmin && (
+          <div className="animate-fade-in">
+            <Card>
+              <h3 className="users-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Building2 size={20} color="var(--win-blue)" /> Gestión de Empresas y Cuadrillas
+              </h3>
+
+              {/* Formulario nueva empresa */}
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', marginTop: '1.25rem' }}>
+                <div style={{ flex: 1 }}>
+                  <Input
+                    label="Nueva empresa contratista"
+                    placeholder="Ej: DIGETEL"
+                    value={newEmpresaNombre}
+                    onChange={e => { setNewEmpresaNombre(e.target.value); setEmpresaError(''); }}
+                    onKeyDown={e => e.key === 'Enter' && handleAddEmpresa()}
+                  />
+                </div>
+                <Button onClick={handleAddEmpresa} style={{ marginBottom: empresaError ? '1.4rem' : '0' }}>
+                  <Plus size={16} /> Agregar empresa
+                </Button>
+              </div>
+              {empresaError && (
+                <div className="login-error-msg" style={{ marginTop: '0.5rem' }}>
+                  <AlertCircle size={16} /> <span>{empresaError}</span>
+                </div>
+              )}
+
+              {/* Lista de empresas */}
+              <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {empresasDetalle.length === 0 && (
+                  <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem' }}>
+                    No hay empresas registradas aún.
+                  </p>
+                )}
+                {empresasDetalle.map(emp => (
+                  <div key={emp.id} style={{
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: '10px',
+                    padding: '1rem 1.25rem'
+                  }}>
+                    {/* Cabecera empresa */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <span style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Building2 size={16} color="var(--win-orange)" /> {emp.nombre}
+                      </span>
+                      <button
+                        className="icon-action-btn icon-action-btn--danger"
+                        onClick={() => handleDeleteEmpresa(emp)}
+                        title="Eliminar empresa"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+
+                    {/* Cuadrillas como chips */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                      {(emp.win_cuadrillas || []).length === 0 && (
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Sin cuadrillas aún</span>
+                      )}
+                      {(emp.win_cuadrillas || []).map(c => (
+                        <span key={c.id} style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                          background: 'rgba(30,144,255,0.12)', border: '1px solid rgba(30,144,255,0.35)',
+                          borderRadius: '20px', padding: '0.25rem 0.65rem',
+                          fontSize: '0.82rem', fontWeight: '600', color: 'var(--win-blue)'
+                        }}>
+                          {c.codigo}
+                          <button
+                            onClick={() => handleDeleteCuadrilla(c.id, c.codigo)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(30,144,255,0.6)', display: 'flex', alignItems: 'center', padding: '0' }}
+                            title={`Eliminar cuadrilla ${c.codigo}`}
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Agregar cuadrilla */}
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <input
+                        className="ui-input"
+                        placeholder="Nueva cuadrilla (ej: D5)"
+                        value={newCuadrilla[emp.id] || ''}
+                        onChange={e => setNewCuadrilla(prev => ({ ...prev, [emp.id]: e.target.value }))}
+                        onKeyDown={e => e.key === 'Enter' && handleAddCuadrilla(emp.id)}
+                        style={{ flex: 1, maxWidth: '200px', padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}
+                      />
+                      <Button
+                        onClick={() => handleAddCuadrilla(emp.id)}
+                        variant="secondary"
+                        style={{ padding: '0.4rem 0.75rem', fontSize: '0.82rem' }}
+                      >
+                        <Plus size={14} /> Cuadrilla
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        )}
+
         {activeTab === 'AUDITORIA' && isAdmin && (
           <div className="tab-pane animate-fade-in">
             <Card>
