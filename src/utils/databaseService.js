@@ -235,3 +235,43 @@ export const getCuadrillas = async (empresaId) => {
   return data || [];
 };
 
+export const getEmpresasConCuadrillas = async () => {
+  const { data, error } = await supabase
+    .from('win_empresas')
+    .select('id, nombre, activo, win_cuadrillas(id, codigo, activo)')
+    .eq('activo', true)
+    .order('nombre');
+  if (error) { console.error('Error:', error); return []; }
+  return data || [];
+};
+
+export const addEmpresa = async (nombre) => {
+  const { data, error } = await supabase
+    .from('win_empresas')
+    .insert([{ nombre: nombre.trim().toUpperCase() }])
+    .select().single();
+  if (error) return { success: false, error: error.message };
+  return { success: true, data };
+};
+
+export const deleteEmpresa = async (id) => {
+  const { error } = await supabase.from('win_empresas').delete().eq('id', id);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+};
+
+export const addCuadrilla = async (empresaId, codigo) => {
+  const { data, error } = await supabase
+    .from('win_cuadrillas')
+    .insert([{ empresa_id: empresaId, codigo: codigo.trim().toUpperCase() }])
+    .select().single();
+  if (error) return { success: false, error: error.message };
+  return { success: true, data };
+};
+
+export const deleteCuadrilla = async (id) => {
+  const { error } = await supabase.from('win_cuadrillas').delete().eq('id', id);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+};
+

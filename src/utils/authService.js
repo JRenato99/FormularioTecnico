@@ -163,11 +163,11 @@ export const initDefaultUsers = () => {};
 
 // ─── LOGIN con validación de cuadrilla ────────────────────────────────────────
 /**
- * Autentica al usuario contra Supabase Auth y valida su cuadrilla.
- * Para ADMINISTRADOR y SUPERVISOR la cuadrilla en BD es NULL → se omite la validación.
+ * Autentica al usuario contra Supabase Auth.
+ * La cuadrilla ya no se valida en el login — permanece en BD como referencia.
  * Retorna { success, session?, mustChangePassword?, error? }
  */
-export const login = async (email, password, cuadrilla = '') => {
+export const login = async (email, password) => {
   if (!isValidEmail(email)) return { success: false, error: 'Ingresa un correo válido.' };
 
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
@@ -187,14 +187,6 @@ export const login = async (email, password, cuadrilla = '') => {
   if (userProfile.estado === 'BLOQUEADO') {
     await supabase.auth.signOut();
     return { success: false, error: 'Tu cuenta ha sido bloqueada. Contacta al Administrador.' };
-  }
-
-  // Validación de cuadrilla solo para TECNICO (Admin y Supervisor tienen cuadrilla NULL)
-  if (userProfile.role === 'TECNICO' && userProfile.cuadrilla) {
-    if (cuadrilla !== userProfile.cuadrilla) {
-      await supabase.auth.signOut();
-      return { success: false, error: 'WRONG_CUADRILLA', cuadrillaEsperada: userProfile.cuadrilla };
-    }
   }
 
   // Poblar el caché de sesión EN MEMORIA (sin localStorage). Los guards de

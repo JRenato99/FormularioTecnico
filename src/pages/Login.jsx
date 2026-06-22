@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, Input, Button, Select } from '../components/ui';
 import { Wifi, ArrowRight, ShieldCheck, AlertCircle, Eye, EyeOff, Key, CheckCircle } from 'lucide-react';
 import { login, getSession, bootstrapSession, isValidEmail, changePassword } from '../utils/authService';
-import { getEmpresas, getCuadrillas } from '../utils/databaseService';
+import { getEmpresas } from '../utils/databaseService';
 import { useUI } from '../components/ui/Modal.jsx';
 import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { supabase } from '../utils/supabaseClient';
@@ -25,9 +25,7 @@ const Login = () => {
   const [email, setEmail]                     = useState('');
   const [password, setPassword]               = useState('');
   const [showPassword, setShowPassword]       = useState(false);
-  const [cuadrilla, setCuadrilla]             = useState('');
   const [empresas, setEmpresas]               = useState([]);
-  const [cuadrillasList, setCuadrillasList]   = useState([]);
   const [empresaId, setEmpresaId]             = useState('');
   const [errorMsg, setErrorMsg]               = useState('');
   const [emailError, setEmailError]           = useState('');
@@ -56,11 +54,8 @@ const Login = () => {
     getEmpresas().then(setEmpresas);
   }, [navigate]);
 
-  const handleEmpresaChange = async (e) => {
-    const id = e.target.value;
-    setEmpresaId(id);
-    setCuadrilla('');
-    setCuadrillasList(id ? await getCuadrillas(id) : []);
+  const handleEmpresaChange = (e) => {
+    setEmpresaId(e.target.value);
   };
 
   const handleEmailBlur = () => {
@@ -127,19 +122,10 @@ const Login = () => {
       return;
     }
 
-    const result = await login(email, password, cuadrilla);
+    const result = await login(email, password);
     setIsLoading(false);
 
     if (!result.success) {
-      // Error especial de cuadrilla incorrecta
-      if (result.error === 'WRONG_CUADRILLA') {
-        showModal({
-          type: 'error',
-          title: 'Cuadrilla Incorrecta',
-          message: 'La cuadrilla seleccionada no corresponde a tu cuenta. Por favor verifica tu cuadrilla asignada con el Administrador.'
-        });
-        return;
-      }
       setErrorMsg(result.error);
       return;
     }
@@ -250,7 +236,7 @@ const Login = () => {
               </button>
             </div>
 
-            {/* Empresa (técnicos) */}
+            {/* Empresa Contratista (solo técnicos, opcional para admin/supervisor) */}
             <Select
               label="Empresa Contratista"
               value={empresaId}
@@ -259,18 +245,6 @@ const Login = () => {
                 { label: 'Selecciona tu empresa (solo técnicos)', value: '' },
                 ...empresas.map(e => ({ label: e.nombre, value: e.id }))
               ]}
-            />
-
-            {/* Cuadrilla — habilitada al seleccionar empresa */}
-            <Select
-              label="Cuadrilla Asignada"
-              value={cuadrilla}
-              onChange={e => setCuadrilla(e.target.value)}
-              options={[
-                { label: empresaId ? 'Selecciona tu cuadrilla' : '— Selecciona primero tu empresa —', value: '' },
-                ...cuadrillasList.map(c => ({ label: c.codigo, value: c.codigo }))
-              ]}
-              disabled={!empresaId}
             />
 
             <div className="login-captcha-section">

@@ -33,11 +33,23 @@ WHERE role IN ('SUPERVISOR', 'ADMINISTRADOR');
 ALTER TABLE public.win_empresas    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.win_cuadrillas  ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Lectura publica autenticada" ON public.win_empresas
-  FOR SELECT TO authenticated USING (true);
+-- Lectura pública (anon y authenticated): necesaria para los combos en el Login
+CREATE POLICY "Lectura publica" ON public.win_empresas
+  FOR SELECT USING (true);
 
-CREATE POLICY "Lectura publica autenticada" ON public.win_cuadrillas
-  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Lectura publica" ON public.win_cuadrillas
+  FOR SELECT USING (true);
+
+-- Escritura solo para ADMINISTRADOR
+CREATE POLICY "Admin gestiona empresas" ON public.win_empresas
+  FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.win_users WHERE id = auth.uid() AND role = 'ADMINISTRADOR'))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.win_users WHERE id = auth.uid() AND role = 'ADMINISTRADOR'));
+
+CREATE POLICY "Admin gestiona cuadrillas" ON public.win_cuadrillas
+  FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.win_users WHERE id = auth.uid() AND role = 'ADMINISTRADOR'))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.win_users WHERE id = auth.uid() AND role = 'ADMINISTRADOR'));
 
 -- 6. Índices de performance (ayudan cuando crezcan los datos)
 CREATE INDEX win_orders_tecnico_id_idx ON public.win_orders (tecnico_id);
